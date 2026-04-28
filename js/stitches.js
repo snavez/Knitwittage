@@ -452,6 +452,76 @@ const STITCH_CODE_LIBRARY = {
     'T3F':   'Twist 3 front: slip 2 knit stitches to a cable needle and hold at the front, P1, then K2 from the cable needle.',
 };
 
+// True when a user-drawn shape array contains nothing visible — either no
+// shapes, or only erase strokes (which paint in the paper colour and so
+// leave no visible mark). Drives the code-as-text fallback below.
+function isEffectivelyEmpty(shapes) {
+    if (!shapes || !shapes.length) return true;
+    return shapes.every(s => s && s.stroke === STITCH_COLORS.bg);
+}
+
+// Pick a two-line wrap split for codes that can't fit on a single line.
+// Whitespace first ("K2tog tbl" → "K2tog" / "tbl"), then a digit→letter
+// boundary ("K2tog" → "K2" / "tog"), then the midpoint as a last resort.
+// Never truncates — losing a character changes the meaning (SSK ≠ SSP).
+function splitCodeForWrap(code) {
+    const ws = code.indexOf(' ');
+    if (ws > 0 && ws < code.length - 1) return [code.slice(0, ws), code.slice(ws + 1)];
+    const m = /\d[a-zA-Z]/.exec(code);
+    if (m && m.index > 0 && m.index + 1 < code.length) {
+        return [code.slice(0, m.index + 1), code.slice(m.index + 1)];
+    }
+    const mid = Math.ceil(code.length / 2);
+    return [code.slice(0, mid), code.slice(mid)];
+}
+
+// Auto-fit fallback for stitches with no drawn icon: render the code as
+// text, sized to fit the cell. Shrinks until the code fits on a single
+// line inside ~85% of the cell width; if it can't fit at the minimum
+// legible size, wraps to two lines via splitCodeForWrap. Never truncates.
+function drawCodeAsText(ctx, code, x, y, w, h) {
+    if (!code) return;
+    const cellMin = Math.min(w, h);
+    const targetW = w * 0.85;
+    const minSize = Math.max(7, cellMin * 0.18);
+    const maxSize = Math.max(minSize + 1, cellMin * 0.7);
+    const family = `"Source Serif 4", Georgia, serif`;
+
+    ctx.save();
+    ctx.fillStyle = STITCH_COLORS.yarn;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const widthAt = (size, text) => {
+        ctx.font = `600 ${size}px ${family}`;
+        return ctx.measureText(text).width;
+    };
+
+    // Try a single line — shrink from max until it fits or we hit the floor.
+    let size = maxSize;
+    while (size > minSize && widthAt(size, code) > targetW) size -= 0.5;
+    if (widthAt(size, code) <= targetW) {
+        ctx.font = `600 ${size}px ${family}`;
+        ctx.fillText(code, x + w / 2, y + h / 2);
+        ctx.restore();
+        return;
+    }
+
+    // Single line still overflows at minSize — wrap to two lines.
+    const [a, b] = splitCodeForWrap(code);
+    let lineSize = maxSize * 0.65;
+    while (lineSize > minSize) {
+        if (widthAt(lineSize, a) <= targetW && widthAt(lineSize, b) <= targetW) break;
+        lineSize -= 0.5;
+    }
+    ctx.font = `600 ${lineSize}px ${family}`;
+    const cy = y + h / 2;
+    const lineOffset = lineSize * 0.55;
+    ctx.fillText(a, x + w / 2, cy - lineOffset);
+    ctx.fillText(b, x + w / 2, cy + lineOffset);
+    ctx.restore();
+}
+
 // Render a user-defined stitch by walking its `shapes` array. Coordinates are
 // normalised 0..100; the renderer maps them to the target (x,y,w,h) rect and
 // preserves aspect ratio (centres the drawing if the target isn't square).
@@ -545,6 +615,18 @@ function drawUserStitchShapes(ctx, shapes, x, y, w, h) {
 function hydrateUserStitch(record) {
     const shapes = record.shapes || [];
     const multiCell = !!record.multiCell;
+    const code = record.code || record.id;
+    // Code-as-text fallback: when the user saved the stitch with no visible
+    // shapes (or only erase strokes), render the code as auto-fit text in
+    // place of the drawn icon. Same fallback applies to palette tile and
+    // chart cell, so an iconless stitch is never invisible.
+    const renderAt = (ctx, x, y, w, h) => {
+        if (isEffectivelyEmpty(shapes)) {
+            drawCodeAsText(ctx, code, x, y, w, h);
+        } else {
+            drawUserStitchShapes(ctx, shapes, x, y, w, h);
+        }
+    };
     return {
         id: record.id,
         label: record.label || record.id,
@@ -555,15 +637,15 @@ function hydrateUserStitch(record) {
         // the lead cell + faint echoes elsewhere.
         kind: multiCell ? 'user-multi' : 'simple',
         multiCell,
-        code: record.code || record.id,
-        printSymbol: record.code || record.id, // printed in the chart table
-        printSymbolFontPt: (record.code && record.code.length > 1) ? 6 : undefined,
+        code,
+        printSymbol: code, // printed in the chart table
+        printSymbolFontPt: (code && code.length > 1) ? 6 : undefined,
         detailedInstructions: record.detailedInstructions || '',
         shapes,
         source: 'user',
         order: record.order ?? 500,
-        drawIcon: (ctx, s) => drawUserStitchShapes(ctx, shapes, 0, 0, s, s),
-        drawCell: (ctx, x, y, w, h) => drawUserStitchShapes(ctx, shapes, x, y, w, h),
+        drawIcon: (ctx, s) => renderAt(ctx, 0, 0, s, s),
+        drawCell: (ctx, x, y, w, h) => renderAt(ctx, x, y, w, h),
         _record: record,
     };
 }

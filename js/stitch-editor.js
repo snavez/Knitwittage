@@ -971,10 +971,10 @@ async function saveStitch() {
         document.getElementById('st-code').focus();
         return;
     }
-    if (editorState.shapes.length === 0) {
-        showEditorToast('Draw something on the canvas before saving.');
-        return;
-    }
+    // No "must draw something" block: an iconless or erase-only stitch is
+    // valid — the renderer falls back to drawing the code as text in the
+    // cell, so it's never invisible. (See isEffectivelyEmpty / drawCodeAsText
+    // in js/stitches.js.)
 
     const id = code;
     const existing = StitchRegistry.get(id);
