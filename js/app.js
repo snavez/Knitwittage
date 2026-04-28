@@ -1,3 +1,13 @@
+// True when the keystroke target is a text-entry surface — used by global
+// keydown handlers to skip workbench / knit-mode shortcuts so the user can
+// type letters, spaces, arrows, Ctrl+Z etc. into inputs without the rest of
+// the app stealing them.
+function isEditableTarget(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable === true;
+}
+
 // === State ===
 const state = {
     rows: 20,
@@ -638,6 +648,12 @@ function bindEvents() {
 
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+        // Don't hijack keys while the user is typing — Ctrl+Z should undo
+        // textbox content, Delete should delete a character, etc. Escape is
+        // exempt so the user can still dismiss a paste-in-progress / clear
+        // a grid selection without having to click out of the field first.
+        const editing = isEditableTarget(e.target);
+        if (editing && e.key !== 'Escape') return;
         if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
         if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
         if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveToFile(); }

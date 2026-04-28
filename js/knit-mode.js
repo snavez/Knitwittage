@@ -30,11 +30,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Keyboard navigation when in knit mode
     document.addEventListener('keydown', (e) => {
         if (!knitState.active) return;
-        if (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === ' ') {
+        // Don't steal keys while the user is typing in a text field — Space,
+        // arrows, and f/F must reach inputs, textareas, and contenteditable
+        // surfaces. Escape still escapes here, since a modal's own Escape
+        // handler is what actually closes it.
+        if (isEditableTarget(e.target) && e.key !== 'Escape') return;
+        // Knitting goes bottom-up, so the highlight should travel up the chart
+        // when the user advances. Up = next row (toward the top), Down = previous
+        // row (toward the bottom). Right/Space stay as "forward", Left as "back".
+        if (e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === ' ') {
             e.preventDefault();
             nextRow();
         }
-        if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
             e.preventDefault();
             prevRow();
         }
