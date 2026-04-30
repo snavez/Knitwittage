@@ -270,10 +270,48 @@ function applySimpleStitch(r, c) {
             }
         }
     } else if (StitchRegistry.isSimple(state.activeStitch)) {
+        // Touching any cell of a multi-cell cluster (cable cross or
+        // user-multi) destroys the whole cluster — only the cell the user
+        // actually painted gets the new stitch; the rest of the cluster
+        // goes empty. A partial cluster is broken, so we never leave one
+        // behind, and we don't fabricate stitches in cells the user didn't
+        // touch (drag-painting will fill those in if the drag passes over
+        // them; otherwise they stay null).
+        const existing = state.stitchGrid[r][c];
+        if (existing && typeof existing === 'object' && existing.id) {
+            const id = existing.id;
+            for (let cc = 0; cc < state.cols; cc++) {
+                const s = state.stitchGrid[r][cc];
+                if (s && typeof s === 'object' && s.id === id) {
+                    state.stitchGrid[r][cc] = null;
+                }
+            }
+        }
         // Registry ids are what we store in the grid verbatim.
         state.stitchGrid[r][c] = state.activeStitch;
     }
     renderStitchOverlay();
+}
+
+// Before writing a new cluster (cable cross or user-multi) over a region of
+// the row, null out *every* cell of any pre-existing cluster that touches
+// the new placement window — even cells outside the window. A partial
+// cluster left over outside the new region would re-render its echoes
+// against an empty span and look broken; clearing keeps the grid clean.
+function clearOverlappedClustersInRow(row, minC, maxC) {
+    if (!state.stitchGrid[row]) return;
+    const idsToClear = new Set();
+    for (let c = minC; c <= maxC; c++) {
+        const cell = state.stitchGrid[row][c];
+        if (cell && typeof cell === 'object' && cell.id) idsToClear.add(cell.id);
+    }
+    if (idsToClear.size === 0) return;
+    for (let cc = 0; cc < state.cols; cc++) {
+        const s = state.stitchGrid[row][cc];
+        if (s && typeof s === 'object' && idsToClear.has(s.id)) {
+            state.stitchGrid[row][cc] = null;
+        }
+    }
 }
 
 // ========================================
@@ -403,6 +441,10 @@ function commitCross() {
     // Compute expected result
     const expectedResult = computeCrossResult(clusters, dir);
 
+    // Wipe any pre-existing cluster that overlaps with the new crossing —
+    // see clearOverlappedClustersInRow for the rationale.
+    clearOverlappedClustersInRow(row, minC, maxC);
+
     // Store the crossing
     const id = 'x' + (++crossIdCounter);
     for (let c = minC; c <= maxC; c++) {
@@ -487,6 +529,9 @@ function commitUserMulti() {
     const lead = Math.floor((width - 1) / 2);
     const groupId = 'um' + (++userMultiIdCounter);
     if (state.stitchGrid[row]) {
+        // Wipe any pre-existing cluster that overlaps with the new placement
+        // before writing — see clearOverlappedClustersInRow.
+        clearOverlappedClustersInRow(row, minC, maxC);
         for (let c = minC; c <= maxC; c++) {
             state.stitchGrid[row][c] = {
                 type: 'user-multi',
