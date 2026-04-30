@@ -308,7 +308,12 @@ async function mergePatternUserStitches(list) {
         if (areStitchesIdentical(yoursRecord, rec)) {
             out.identical++;
         } else {
-            out.conflicts.push({ id: rec.id, yours: yoursRecord, theirs: rec });
+            // typeMismatch flags the worst case: the multiCell flag differs.
+            // The grid renders correctly only when the per-cell records and
+            // the registry's flag agree, so "keep mine" for these conflicts
+            // also rewrites the loaded grid (commitImportReview handles it).
+            const typeMismatch = !!yoursRecord.multiCell !== !!rec.multiCell;
+            out.conflicts.push({ id: rec.id, yours: yoursRecord, theirs: rec, typeMismatch });
         }
     }
     if (out.imported) document.dispatchEvent(new CustomEvent('stitch-registry-updated'));
@@ -394,13 +399,33 @@ function renderImportReviewList() {
 
 function buildReviewRow(conflict) {
     const row = document.createElement('div');
-    row.className = 'review-row';
+    row.className = 'review-row' + (conflict.typeMismatch ? ' has-type-mismatch' : '');
     row.dataset.id = conflict.id;
 
     const code = document.createElement('div');
     code.className = 'review-row-code';
     code.textContent = conflict.id;
+    if (conflict.typeMismatch) {
+        const tag = document.createElement('span');
+        tag.className = 'review-row-tag';
+        tag.textContent = 'layout mismatch';
+        code.appendChild(tag);
+    }
     row.appendChild(code);
+
+    if (conflict.typeMismatch) {
+        // Spell out the consequence of "Keep mine" so the user knows what
+        // the grid will look like after they commit. Different message for
+        // each direction since the rewrite differs.
+        const warn = document.createElement('div');
+        warn.className = 'review-row-warning';
+        if (conflict.theirs.multiCell && !conflict.yours.multiCell) {
+            warn.textContent = `Pattern uses "${conflict.id}" as a multi-cell stitch; your version is single-cell. Keeping yours will split each cluster in this pattern into separate single-cell stitches.`;
+        } else if (!conflict.theirs.multiCell && conflict.yours.multiCell) {
+            warn.textContent = `Pattern uses "${conflict.id}" as a single-cell stitch; your version is multi-cell. Keeping yours will group consecutive cells into multi-cell clusters using your stitch.`;
+        }
+        row.appendChild(warn);
+    }
 
     const pair = document.createElement('div');
     pair.className = 'review-pair';
@@ -415,6 +440,63 @@ function buildReviewRow(conflict) {
     pair.appendChild(buildReviewCell("Pattern's", conflict.theirs, conflict.decision === 'theirs', () => setDecision('theirs')));
     row.appendChild(pair);
     return row;
+}
+
+// Replace every user-multi cluster cell that references `stitchId` with the
+// plain stitch-id string. Used when the user picks "Keep mine" for a
+// multi → single type mismatch — without this, the renderer would draw
+// fade-echo cluster spans against a single-cell icon, which looks broken.
+function flattenMultiCellClustersInGrid(stitchId) {
+    if (typeof state === 'undefined' || !Array.isArray(state.stitchGrid)) return 0;
+    let rewritten = 0;
+    for (const row of state.stitchGrid) {
+        if (!row) continue;
+        for (let c = 0; c < row.length; c++) {
+            const cell = row[c];
+            if (cell && typeof cell === 'object' && cell.type === 'user-multi' && cell.stitchId === stitchId) {
+                row[c] = stitchId;
+                rewritten++;
+            }
+        }
+    }
+    return rewritten;
+}
+
+// Inverse of flatten: when the user picks "Keep mine" for a single → multi
+// mismatch, the recipient's gallery def is multi-cell but the loaded grid
+// holds plain string IDs (single-cell placements from the pattern file).
+// Promote contiguous runs of that ID in each row into one multi-cell cluster
+// per run, so the chart renders with the clustered look the user's stitch
+// was designed for. Lone cells become width-1 clusters (same visual as
+// before but consistent in the data model).
+let _userMultiImportClusterCounter = 0;
+function clusterizeSinglePlacementsInGrid(stitchId) {
+    if (typeof state === 'undefined' || !Array.isArray(state.stitchGrid)) return 0;
+    let runsCreated = 0;
+    for (const row of state.stitchGrid) {
+        if (!row) continue;
+        let i = 0;
+        while (i < row.length) {
+            if (row[i] === stitchId) {
+                let j = i;
+                while (j < row.length && row[j] === stitchId) j++;
+                const width = j - i;
+                const groupId = 'umi' + (++_userMultiImportClusterCounter);
+                const lead = Math.floor((width - 1) / 2);
+                for (let k = 0; k < width; k++) {
+                    row[i + k] = {
+                        type: 'user-multi', stitchId, id: groupId,
+                        width, pos: k, lead,
+                    };
+                }
+                runsCreated++;
+                i = j;
+            } else {
+                i++;
+            }
+        }
+    }
+    return runsCreated;
 }
 
 function buildReviewCell(label, record, isSelected, onToggle) {
@@ -453,8 +535,22 @@ function buildReviewCell(label, record, isSelected, onToggle) {
 // "Use pattern's" require a single secondary confirm summarising the global
 // gallery mutations — knitters who chose "Keep mine" for everything see no
 // confirm at all, since nothing changes.
+//
+// Type mismatches (multiCell flag differs) on Keep-mine rows trigger a grid
+// rewrite for the multi → single direction so the loaded chart renders
+// cleanly with the recipient's single-cell icon. The single → multi
+// direction needs no rewrite — cells stay as plain strings and render
+// once per cell with the recipient's multi-cell icon at single-cell size
+// (warned about in the modal).
 async function commitImportReview() {
-    const overwrites = pendingImportConflicts.filter(c => c.decision === 'theirs');
+    const overwrites    = pendingImportConflicts.filter(c => c.decision === 'theirs');
+    const flattens      = pendingImportConflicts.filter(c =>
+        c.decision === 'mine' && c.typeMismatch && c.theirs.multiCell && !c.yours.multiCell
+    );
+    const clusterizes   = pendingImportConflicts.filter(c =>
+        c.decision === 'mine' && c.typeMismatch && !c.theirs.multiCell && c.yours.multiCell
+    );
+
     if (overwrites.length > 0) {
         const ids = overwrites.map(c => `• ${c.id}`).join('\n');
         const noun = overwrites.length === 1 ? 'this stitch' : 'these stitches';
@@ -487,11 +583,26 @@ async function commitImportReview() {
             showToast(`Replaced ${overwrites.length - failed}, ${failed} failed.`, { tone: 'error' });
         }
     }
+
+    // Rewrite the loaded grid for any keep-mine + type-mismatch decisions so
+    // the per-cell records line up with the recipient's multiCell flag.
+    //   multi → single: flatten cluster cells to plain strings
+    //   single → multi: group contiguous string runs into clusters
+    let cellsFlattened = 0;
+    let runsClusterized = 0;
+    for (const c of flattens)    cellsFlattened  += flattenMultiCellClustersInGrid(c.id);
+    for (const c of clusterizes) runsClusterized += clusterizeSinglePlacementsInGrid(c.id);
+    if ((cellsFlattened || runsClusterized) && typeof renderStitchOverlay === 'function') {
+        renderStitchOverlay();
+    }
+
     // Build a single end-of-flow toast summarising the whole batch.
     const kept = pendingImportConflicts.length - overwrites.length;
     const parts = [];
     if (overwrites.length) parts.push(`${overwrites.length} replaced`);
     if (kept)              parts.push(`${kept} kept`);
+    if (cellsFlattened)    parts.push(`${cellsFlattened} cell${cellsFlattened === 1 ? '' : 's'} flattened`);
+    if (runsClusterized)   parts.push(`${runsClusterized} run${runsClusterized === 1 ? '' : 's'} clustered`);
     if (parts.length) showToast(`Review complete — ${parts.join(', ')}.`);
     pendingImportConflicts = [];
     closeImportReviewModal();
