@@ -1052,14 +1052,16 @@ function loadFromFile() {
 }
 
 // Import any custom-stitch definitions the pattern file carries with it.
-// Delegates to mergeUserStitches (gallery.js) so pattern-file imports and
-// gallery-file imports share the same collision-prompt UX.
+// Uses the deferred-conflict path: new stitches imported silently, identical
+// ones no-op'd, and conflicting ones returned for review (they are NOT applied
+// to the gallery — the recipient's existing icons are kept until the user
+// reviews the conflicts via the import-conflict banner).
 async function importUserStitchesFromPattern(data) {
     const list = Array.isArray(data && data.userStitches) ? data.userStitches : [];
-    if (list.length === 0 || typeof mergeUserStitches !== 'function') {
-        return { imported: 0, skipped: 0, overwritten: 0 };
+    if (list.length === 0 || typeof mergePatternUserStitches !== 'function') {
+        return { imported: 0, identical: 0, conflicts: [], failed: 0 };
     }
-    return await mergeUserStitches(list, { silent: true });
+    return await mergePatternUserStitches(list);
 }
 
 function handleFileLoad(e) {
@@ -1077,17 +1079,33 @@ function handleFileLoad(e) {
             // overlay renderer has every stitch definition it needs.
             const result = await importUserStitchesFromPattern(data);
             restorePatternData(data);
+
+            // Surface conflicts via the review banner, not a blocking dialog —
+            // the pattern always opens; gallery is never silently mutated.
+            if (typeof showImportConflictBanner === 'function') {
+                if (result.conflicts && result.conflicts.length > 0) {
+                    showImportConflictBanner(result.conflicts);
+                } else if (typeof hideImportConflictBanner === 'function') {
+                    hideImportConflictBanner();
+                }
+            }
+
             const base = `Loaded "${data.name || file.name}"`;
             const bits = [];
-            if (result.imported) bits.push(`${result.imported} custom stitch${result.imported === 1 ? '' : 'es'} added`);
-            if (result.overwritten) bits.push(`${result.overwritten} overwritten`);
-            if (result.skipped)    bits.push(`${result.skipped} kept as-is`);
+            if (result.imported)             bits.push(`${result.imported} added`);
+            if (result.identical)            bits.push(`${result.identical} matched`);
+            if (result.conflicts?.length)    bits.push(`${result.conflicts.length} differ — review`);
+            if (result.failed)               bits.push(`${result.failed} failed`);
             showToast(bits.length ? `${base} — ${bits.join(', ')}` : base);
+
             const missing = getMissingGridStitches();
             if (missing.length) {
-                const list = missing.map(id => `'${id}'`).join(', ');
-                const noun = missing.length === 1 ? 'an unknown stitch' : `${missing.length} unknown stitches`;
-                showToast(`Pattern uses ${noun}: ${list}. Cells using them will display blank until those stitches are added to your gallery.`, { tone: 'error' });
+                const ids = missing.map(id => `'${id}'`).join(', ');
+                const noun = missing.length === 1 ? 'a stitch' : `${missing.length} stitches`;
+                showToast(
+                    `Pattern uses ${noun} not in your gallery: ${ids}. Cells will show the code as text — add the stitch to replace it with an icon.`,
+                    { tone: 'warn' }
+                );
             }
         } catch (err) {
             console.error(err);

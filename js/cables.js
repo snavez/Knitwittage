@@ -14,6 +14,14 @@ document.addEventListener('DOMContentLoaded', () => {
     bindStitchEvents();
     // Re-render the palette if user stitches load in after startup.
     document.addEventListener('stitch-registry-updated', initStitchPalette);
+    // The chart overlay caches stitch icons via def.drawCell — when a user
+    // stitch is added, edited, or replaced (gallery import, conflict review),
+    // existing chart cells using that code need to repaint with the new icon.
+    // Without this listener the user has to click into the grid before the
+    // change becomes visible.
+    document.addEventListener('stitch-registry-updated', () => {
+        if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
+    });
 });
 
 // ========================================

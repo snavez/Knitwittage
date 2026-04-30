@@ -2308,3 +2308,148 @@ body.knit-active .workbench {
         max-width: 320px;
     }
 }
+
+/* === Pattern-import conflict banner === */
+.import-conflict-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px;
+    background: #f4ead6;
+    border-bottom: 1px solid #d6c9a4;
+    font-family: var(--serif);
+    font-size: 0.86rem;
+    color: var(--text);
+}
+.import-conflict-banner[hidden] { display: none; }
+.import-conflict-text { flex: 1; }
+.import-conflict-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.import-conflict-actions button {
+    font-family: var(--serif);
+    font-size: 0.78rem;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 3px;
+    cursor: pointer;
+}
+.import-conflict-actions button.btn-primary {
+    background: var(--text);
+    color: var(--surface);
+    border-color: var(--text);
+}
+.import-conflict-actions button.btn-primary:hover { background: #1a1410; }
+.import-conflict-actions button:hover { background: var(--surface-hover); }
+.import-conflict-actions .modal-close {
+    width: 26px; height: 26px;
+    padding: 0;
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+/* === Pattern-import review modal === */
+.modal.review-modal { width: 640px; max-width: 92vw; }
+.review-hint {
+    margin: 0 0 14px;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    color: var(--text-muted);
+}
+.review-hint strong { color: var(--text); font-weight: 600; }
+.review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+.review-row {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    background: var(--surface);
+}
+.review-row-code {
+    font-family: var(--mono);
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+    letter-spacing: 0.02em;
+}
+.review-pair {
+    display: flex;
+    gap: 16px;
+    justify-content: stretch;
+}
+.review-cell {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    cursor: pointer;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+/* Selected side of the toggle — light-switch style. The unselected side
+   stays subdued so the user can see at a glance which version will commit
+   when they click Done. */
+.review-cell.is-selected {
+    background: #ede1c2;
+    border-color: var(--text);
+}
+.review-cell:not(.is-selected) {
+    opacity: 0.72;
+}
+.review-cell:not(.is-selected):hover {
+    opacity: 1;
+}
+.review-cell-label {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+}
+.review-cell-icon {
+    width: 64px;
+    height: 64px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+}
+.review-cell button {
+    font-family: var(--serif);
+    font-size: 0.78rem;
+    padding: 4px 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 3px;
+    cursor: pointer;
+}
+.review-cell button.btn-primary {
+    background: var(--text);
+    color: var(--surface);
+    border-color: var(--text);
+}
+.review-cell button:hover { background: var(--surface-hover); }
+.review-cell button.btn-primary:hover { background: #1a1410; }
+.review-empty {
+    text-align: center;
+    padding: 20px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}

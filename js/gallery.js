@@ -275,3 +275,265 @@ async function mergeUserStitches(list, opts = {}) {
     }
     return { imported, overwritten, skipped, failed, cancelled };
 }
+
+// ---------- Pattern-load merge (deferred conflict review) ----------
+// Pattern files routinely arrive with a userStitches block, and a synchronous
+// "yours vs theirs" dialog mid-load was hostile UX — the user just wanted to
+// open a chart. Instead we partition silently:
+//   - new (code not in your gallery)        → import immediately
+//   - identical (code + same shapes)        → no-op
+//   - conflicting (code matches, shapes ≠)  → held pending, NOT applied
+// The pattern always opens with the recipient's existing icons; the caller
+// surfaces the pending conflicts via a non-blocking review banner so the user
+// can decide later (or ignore — gallery is never silently mutated).
+async function mergePatternUserStitches(list) {
+    const out = { imported: 0, identical: 0, conflicts: [], failed: 0 };
+    if (typeof StitchRegistry === 'undefined' || !Array.isArray(list)) return out;
+    const valid = list.filter(rec => rec && typeof rec.id === 'string' && Array.isArray(rec.shapes));
+    for (const rec of valid) {
+        const existing = StitchRegistry.get(rec.id);
+        if (existing && existing.source !== 'user') continue; // built-in: never overridden
+        if (!existing) {
+            try {
+                await saveUserStitchToDB(rec);
+                StitchRegistry.upsertUserStitch(rec);
+                out.imported++;
+            } catch (err) {
+                console.warn('Could not import stitch:', rec.id, err);
+                out.failed++;
+            }
+            continue;
+        }
+        const yoursRecord = existing._record || serialiseUserStitch(existing);
+        if (areStitchesIdentical(yoursRecord, rec)) {
+            out.identical++;
+        } else {
+            out.conflicts.push({ id: rec.id, yours: yoursRecord, theirs: rec });
+        }
+    }
+    if (out.imported) document.dispatchEvent(new CustomEvent('stitch-registry-updated'));
+    return out;
+}
+
+// Two stitches are "identical" for import purposes when the visuals and
+// drag-placement behaviour match — the user-facing decision is whether the
+// icon they'll see is the same. Labels / detailed instructions can drift
+// without forcing a review: those are metadata, not chart appearance.
+function areStitchesIdentical(a, b) {
+    if (!a || !b) return false;
+    if ((a.code || a.id) !== (b.code || b.id)) return false;
+    if (!!a.multiCell !== !!b.multiCell) return false;
+    return JSON.stringify(a.shapes || []) === JSON.stringify(b.shapes || []);
+}
+
+// ---------- Import review banner + modal ----------
+// Pending conflicts surface as a persistent banner under the masthead. The
+// banner is dismissible (clears pending state — gallery stays untouched) and
+// has a Review action that opens the per-stitch comparison modal.
+
+let pendingImportConflicts = [];
+
+function showImportConflictBanner(conflicts) {
+    pendingImportConflicts = conflicts.slice();
+    const banner = document.getElementById('import-conflict-banner');
+    const text = document.getElementById('import-conflict-text');
+    if (!banner || !text) return;
+    const n = pendingImportConflicts.length;
+    if (n === 0) { hideImportConflictBanner(); return; }
+    text.textContent = n === 1
+        ? `1 stitch in this pattern differs from your gallery (showing your version).`
+        : `${n} stitches in this pattern differ from your gallery (showing your versions).`;
+    banner.hidden = false;
+}
+
+function hideImportConflictBanner() {
+    pendingImportConflicts = [];
+    const banner = document.getElementById('import-conflict-banner');
+    if (banner) banner.hidden = true;
+}
+
+// Each pending conflict carries a `decision` ('mine' | 'theirs', default 'mine')
+// while the modal is open. Decisions are toggled per row; nothing is committed
+// until the user clicks Done. A single secondary confirm fires before any
+// global gallery mutation, summarising every overwrite at once.
+function openImportReviewModal() {
+    if (pendingImportConflicts.length === 0) return;
+    const modal = document.getElementById('import-review-modal');
+    if (!modal) return;
+    // Default every row to "keep mine" — gallery is never silently mutated.
+    for (const c of pendingImportConflicts) {
+        if (c.decision !== 'mine' && c.decision !== 'theirs') c.decision = 'mine';
+    }
+    modal.classList.add('open');
+    modal.style.display = 'flex';
+    renderImportReviewList();
+}
+
+function closeImportReviewModal() {
+    const modal = document.getElementById('import-review-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+    modal.style.display = 'none';
+}
+
+function renderImportReviewList() {
+    const list = document.getElementById('import-review-list');
+    if (!list) return;
+    list.innerHTML = '';
+    if (pendingImportConflicts.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'review-empty';
+        empty.textContent = 'All conflicts resolved.';
+        list.appendChild(empty);
+        return;
+    }
+    for (const conflict of pendingImportConflicts) {
+        list.appendChild(buildReviewRow(conflict));
+    }
+}
+
+function buildReviewRow(conflict) {
+    const row = document.createElement('div');
+    row.className = 'review-row';
+    row.dataset.id = conflict.id;
+
+    const code = document.createElement('div');
+    code.className = 'review-row-code';
+    code.textContent = conflict.id;
+    row.appendChild(code);
+
+    const pair = document.createElement('div');
+    pair.className = 'review-pair';
+    const setDecision = (next) => {
+        conflict.decision = next;
+        // Re-paint just this row so the toggle highlight tracks state without
+        // reflowing the whole list.
+        const fresh = buildReviewRow(conflict);
+        row.replaceWith(fresh);
+    };
+    pair.appendChild(buildReviewCell('Yours',     conflict.yours,  conflict.decision === 'mine',   () => setDecision('mine')));
+    pair.appendChild(buildReviewCell("Pattern's", conflict.theirs, conflict.decision === 'theirs', () => setDecision('theirs')));
+    row.appendChild(pair);
+    return row;
+}
+
+function buildReviewCell(label, record, isSelected, onToggle) {
+    const cell = document.createElement('div');
+    cell.className = 'review-cell' + (isSelected ? ' is-selected' : '');
+
+    const lbl = document.createElement('div');
+    lbl.className = 'review-cell-label';
+    lbl.textContent = label;
+    cell.appendChild(lbl);
+
+    const icon = document.createElement('canvas');
+    icon.className = 'review-cell-icon';
+    icon.width = 64;
+    icon.height = 64;
+    cell.appendChild(icon);
+    const ctx = icon.getContext('2d');
+    ctx.fillStyle = STITCH_COLORS.bg;
+    ctx.fillRect(0, 0, 64, 64);
+    if (isEffectivelyEmpty(record.shapes)) {
+        drawCodeAsText(ctx, record.code || record.id, 0, 0, 64, 64);
+    } else {
+        drawUserStitchShapes(ctx, record.shapes, 0, 0, 64, 64);
+    }
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = isSelected ? 'btn-primary' : '';
+    btn.textContent = label === "Pattern's" ? "Use pattern's" : 'Keep mine';
+    btn.addEventListener('click', onToggle);
+    cell.appendChild(btn);
+    return cell;
+}
+
+// Done: commit every row's decision in one pass. Rows where the user picked
+// "Use pattern's" require a single secondary confirm summarising the global
+// gallery mutations — knitters who chose "Keep mine" for everything see no
+// confirm at all, since nothing changes.
+async function commitImportReview() {
+    const overwrites = pendingImportConflicts.filter(c => c.decision === 'theirs');
+    if (overwrites.length > 0) {
+        const ids = overwrites.map(c => `• ${c.id}`).join('\n');
+        const noun = overwrites.length === 1 ? 'this stitch' : 'these stitches';
+        const choice = await confirmDialog({
+            title: overwrites.length === 1 ? 'Replace stitch in your gallery?' : 'Replace stitches in your gallery?',
+            message:
+                `Replace ${noun} with the imported version?\n\n${ids}\n\n` +
+                `This changes the stitch in every saved pattern that uses the same code, ` +
+                `not just the one you're viewing.`,
+            buttons: [
+                { id: 'cancel',  label: 'Cancel' },
+                { id: 'replace', label: overwrites.length === 1 ? 'Replace globally' : 'Replace all globally', kind: 'primary' },
+            ],
+        });
+        if (choice !== 'replace') return; // user backed out — modal stays open
+        let failed = 0;
+        for (const c of overwrites) {
+            try {
+                await saveUserStitchToDB(c.theirs);
+                StitchRegistry.upsertUserStitch(c.theirs);
+            } catch (err) {
+                console.warn('Could not replace', c.id, err);
+                failed++;
+            }
+        }
+        if (failed < overwrites.length) {
+            document.dispatchEvent(new CustomEvent('stitch-registry-updated'));
+        }
+        if (failed > 0) {
+            showToast(`Replaced ${overwrites.length - failed}, ${failed} failed.`, { tone: 'error' });
+        }
+    }
+    // Build a single end-of-flow toast summarising the whole batch.
+    const kept = pendingImportConflicts.length - overwrites.length;
+    const parts = [];
+    if (overwrites.length) parts.push(`${overwrites.length} replaced`);
+    if (kept)              parts.push(`${kept} kept`);
+    if (parts.length) showToast(`Review complete — ${parts.join(', ')}.`);
+    pendingImportConflicts = [];
+    closeImportReviewModal();
+    hideImportConflictBanner();
+}
+
+// Legacy per-row resolvers kept as no-ops in case anything still calls them.
+function resolveConflictKeepMine(id) {
+    const c = pendingImportConflicts.find(x => x.id === id);
+    if (c) c.decision = 'mine';
+}
+function resolveConflictUseTheirs(conflict) {
+    const c = pendingImportConflicts.find(x => x.id === conflict.id);
+    if (c) c.decision = 'theirs';
+}
+
+function afterResolution(id, summary) {
+    showToast(`"${id}" — ${summary}.`);
+    if (pendingImportConflicts.length === 0) {
+        closeImportReviewModal();
+        hideImportConflictBanner();
+    } else {
+        renderImportReviewList();
+        // Update the banner count too
+        const text = document.getElementById('import-conflict-text');
+        if (text) {
+            const n = pendingImportConflicts.length;
+            text.textContent = n === 1
+                ? `1 stitch in this pattern differs from your gallery (showing your version).`
+                : `${n} stitches in this pattern differ from your gallery (showing your versions).`;
+        }
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('import-conflict-review')?.addEventListener('click', openImportReviewModal);
+    document.getElementById('import-conflict-dismiss')?.addEventListener('click', () => {
+        hideImportConflictBanner();
+    });
+    document.getElementById('import-review-close')?.addEventListener('click', closeImportReviewModal);
+    document.getElementById('import-review-done')?.addEventListener('click', commitImportReview);
+    document.getElementById('import-review-modal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'import-review-modal') closeImportReviewModal();
+    });
+});

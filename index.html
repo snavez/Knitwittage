@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=101">
+    <link rel="stylesheet" href="css/style.css?v=103">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -55,6 +55,17 @@
             <button id="btn-load" class="tab-link-btn" title="Load from file">Load</button>
         </div>
     </nav>
+
+    <!-- Pattern-import conflict banner — shown when a loaded pattern carries
+         user stitches whose icons differ from the recipient's. Dismissible;
+         opening the review modal commits per-stitch decisions. -->
+    <div class="import-conflict-banner" id="import-conflict-banner" hidden>
+        <span class="import-conflict-text" id="import-conflict-text"></span>
+        <div class="import-conflict-actions">
+            <button id="import-conflict-review" class="btn-primary">Review</button>
+            <button id="import-conflict-dismiss" class="modal-close" title="Dismiss — gallery unchanged">&times;</button>
+        </div>
+    </div>
 
     <!-- Active Knitting Overlay -->
     <div id="knit-overlay" class="knit-overlay" style="display:none;">
@@ -550,6 +561,26 @@
         </div>
     </div>
 
+    <!-- Pattern-import review modal — opened from the conflict banner.
+         Per-stitch side-by-side: Yours | Pattern's, with Keep mine / Use
+         pattern's. "Use pattern's" mutates the global gallery and asks for
+         a secondary confirm before committing. -->
+    <div class="modal-overlay" id="import-review-modal">
+        <div class="modal modal-narrow review-modal">
+            <div class="modal-header">
+                <h2>Review imported stitches</h2>
+                <button class="modal-close" id="import-review-close" title="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="review-hint">These stitches share a code with stitches in your gallery, but the icons differ. Choose per stitch — <strong>Keep mine</strong> leaves your gallery untouched. <strong>Use pattern's</strong> replaces your version <em>everywhere</em> it's used (this pattern and every other saved pattern that references the same code).</p>
+                <div class="review-list" id="import-review-list"><!-- rows injected by gallery.js --></div>
+            </div>
+            <div class="modal-footer">
+                <button id="import-review-done" class="btn-primary">Done</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Print View (hidden, shown only when printing) -->
     <div class="print-view" id="print-view">
         <h1 class="print-title">Knitting Pattern</h1>
@@ -561,19 +592,19 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-view.js?v=101"></script>
-    <script src="js/app.js?v=101"></script>
-    <script src="js/preview.js?v=101"></script>
-    <script src="js/print.js?v=101"></script>
-    <script src="js/instructions.js?v=101"></script>
-    <script src="js/random.js?v=101"></script>
-    <script src="js/image.js?v=101"></script>
-    <script src="js/stitches.js?v=101"></script>
-    <script src="js/stitch-editor.js?v=101"></script>
-    <script src="js/gallery.js?v=101"></script>
-    <script src="js/cables.js?v=101"></script>
-    <script src="js/knit-mode.js?v=101"></script>
-    <script src="js/tabs.js?v=101"></script>
+    <script src="js/grid-view.js?v=103"></script>
+    <script src="js/app.js?v=103"></script>
+    <script src="js/preview.js?v=103"></script>
+    <script src="js/print.js?v=103"></script>
+    <script src="js/instructions.js?v=103"></script>
+    <script src="js/random.js?v=103"></script>
+    <script src="js/image.js?v=103"></script>
+    <script src="js/stitches.js?v=103"></script>
+    <script src="js/stitch-editor.js?v=103"></script>
+    <script src="js/gallery.js?v=103"></script>
+    <script src="js/cables.js?v=103"></script>
+    <script src="js/knit-mode.js?v=103"></script>
+    <script src="js/tabs.js?v=103"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {
