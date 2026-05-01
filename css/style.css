@@ -1861,9 +1861,12 @@ body.knit-active .workbench {
 }
 .st-text-overlay-content {
     /* Sized by its own content (text size) so the overlay grows naturally
-       up to the parent's max-height. Centered display means a single glyph
-       sits in the middle of the box. position:relative anchors the empty-
-       state placeholder (::before below) so it can sit out of layout flow. */
+       up to the parent's max-height. text-align: center handles horizontal
+       centering; multi-line text stacks naturally because this is a normal
+       block (NOT flex — Chromium/Webkit have known contenteditable+flex
+       bugs that swallowed the Enter key entirely). position:relative
+       anchors the empty-state placeholder (::before below) so it can sit
+       out of layout flow. */
     position: relative;
     flex: 0 0 auto;
     padding: 8px 10px;
@@ -1877,9 +1880,7 @@ body.knit-active .workbench {
     cursor: text;
     overflow: hidden;
     word-break: break-word;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: block;
 }
 .st-text-overlay-content:empty::before {
     content: 'Type here…';

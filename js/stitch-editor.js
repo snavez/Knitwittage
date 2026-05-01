@@ -883,13 +883,19 @@ function commitLiveText() {
     const content = document.getElementById('st-text-overlay-content');
     if (!overlay || !content) { editorState.textOverlayOpen = false; return; }
 
-    const text = (content.textContent || '').trim();
+    // innerText preserves visible line breaks (between <br>s and block
+    // wrappers that contenteditable inserts on Enter); textContent would
+    // collapse them to a single string. Trim outer blank lines but keep
+    // interior \n so multi-line stitches render exactly as typed.
+    const raw = (content.innerText || '').replace(/\r\n/g, '\n');
+    const text = raw.replace(/^\n+|\n+$/g, '');
     editorState.textOverlayOpen = false;
 
     if (text) {
         const canvas = editorState.canvas;
         const canvasRect = canvas.getBoundingClientRect();
-        // Range rect = the text's CSS line box (line-height:1 → equals em-box).
+        // Range rect over all content. For multi-line, getClientRects() yields
+        // one rect per line; we union them so textRect bounds the whole block.
         const range = document.createRange();
         range.selectNodeContents(content);
         const rects = range.getClientRects();
@@ -906,23 +912,14 @@ function commitLiveText() {
             if (maxR > minL) textRect = { left: minL, top: minT, right: maxR, bottom: maxB, width: maxR - minL, height: maxB - minT };
         }
 
-        // Find the glyph's actual visual centre using canvas measureText.
-        // CSS baseline inside a line-height:1 line box sits at top + fontBoundingBoxAscent;
-        // the glyph visual centre is (baseline + (desc - asc)/2).
-        const measureCtx = canvas.getContext('2d');
-        measureCtx.save();
-        measureCtx.font = `${editorState.textFontSize}px "Source Serif 4", Georgia, serif`;
-        measureCtx.textBaseline = 'alphabetic';
-        const m = measureCtx.measureText(text);
-        measureCtx.restore();
-        const asc = m.actualBoundingBoxAscent || editorState.textFontSize * 0.75;
-        const desc = m.actualBoundingBoxDescent || editorState.textFontSize * 0.25;
-        const fontAscent = m.fontBoundingBoxAscent || editorState.textFontSize * 0.8;
-        const cssBaselineViewport = textRect.top + fontAscent;
-        const glyphCentreViewport = cssBaselineViewport + (desc - asc) / 2;
+        // Visual centre of the whole text block (single or multi-line). For
+        // single-line this matches the previous glyph-centre computation
+        // because the union rect IS the glyph's line-box.
+        const blockCentreXViewport = textRect.left + textRect.width / 2;
+        const blockCentreYViewport = textRect.top + textRect.height / 2;
 
-        const centreX = ((textRect.left + textRect.width / 2) - canvasRect.left) / canvasRect.width * 100;
-        const centreY = (glyphCentreViewport - canvasRect.top) / canvasRect.height * 100;
+        const centreX = (blockCentreXViewport - canvasRect.left) / canvasRect.width * 100;
+        const centreY = (blockCentreYViewport - canvasRect.top) / canvasRect.height * 100;
         const fontSize100 = editorState.textFontSize * 100 / canvasRect.width;
 
         editorState.shapes.push({

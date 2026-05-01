@@ -589,22 +589,54 @@ function drawUserStitchShapes(ctx, shapes, x, y, w, h) {
             }
             ctx.stroke();
         } else if (shape.type === 'text' && shape.text) {
-            const fs = Math.max(6, (shape.fontSize || 30) * scale);
+            // Natural size scales linearly with the cell. A tiny 2px floor
+            // keeps the text from vanishing at extreme zoom-out — but no
+            // higher: a 6px floor (the previous value) pushed text past the
+            // cell boundary at small zoom levels, since the text grew while
+            // the cell didn't.
+            let fs = Math.max(2, (shape.fontSize || 30) * scale);
             ctx.fillStyle = stroke;
-            ctx.font = `${Math.round(fs)}px "Source Serif 4", Georgia, serif`;
+            ctx.font = `${fs}px "Source Serif 4", Georgia, serif`;
             ctx.textAlign = 'center';
-            // Canvas baseline='middle' puts the EM-BOX middle at Y, which for
-            // cap-heavy characters like "K" sits well below the glyph's visual
-            // centre (em-box includes descender space that K doesn't use). We
-            // want (shape.x, shape.y) to land on the actual glyph centre the
-            // user positioned, so render with 'alphabetic' and shift the
-            // baseline by half the asc/desc imbalance.
             ctx.textBaseline = 'alphabetic';
-            const m = ctx.measureText(shape.text);
-            const asc = m.actualBoundingBoxAscent || fs * 0.75;
-            const desc = m.actualBoundingBoxDescent || fs * 0.25;
-            const baselineY = offY + shape.y * scale - (desc - asc) / 2;
-            ctx.fillText(shape.text, offX + shape.x * scale, baselineY);
+
+            const lines = shape.text.split('\n');
+            // Auto-shrink so the widest line fits within ~92% of the cell
+            // width. The user positioned the text inside their drawing
+            // canvas; clamping at render time keeps it inside its chart cell
+            // at every zoom level too. Lines/paths/etc. don't need this
+            // because they were drawn within the editor canvas bounds — text
+            // can extend past those bounds since fillText draws relative to
+            // an anchor, not a clipped box.
+            const targetW = w * 0.92;
+            let widest = 0;
+            for (const line of lines) {
+                if (!line) continue;
+                const lw = ctx.measureText(line).width;
+                if (lw > widest) widest = lw;
+            }
+            if (widest > targetW) {
+                fs = fs * (targetW / widest);
+                ctx.font = `${fs}px "Source Serif 4", Georgia, serif`;
+            }
+
+            // Multi-line text stacks around (shape.x, shape.y) using fs as
+            // the line height (matches CSS line-height:1 in the live
+            // overlay). textBaseline 'alphabetic' + the (asc - desc)/2 nudge
+            // puts each line's optical centre on its slot centre, so a
+            // cap-heavy line like "K" doesn't sink below where it sat in
+            // the editor (em-box includes descender space that K doesn't use).
+            const lineHeight = fs;
+            const blockTopY = offY + shape.y * scale - (lines.length * lineHeight) / 2;
+            for (let li = 0; li < lines.length; li++) {
+                const line = lines[li];
+                if (!line) continue;
+                const m = ctx.measureText(line);
+                const asc = m.actualBoundingBoxAscent || fs * 0.75;
+                const desc = m.actualBoundingBoxDescent || fs * 0.25;
+                const baselineY = blockTopY + li * lineHeight + lineHeight * 0.5 + (asc - desc) / 2;
+                ctx.fillText(line, offX + shape.x * scale, baselineY);
+            }
         }
     }
     ctx.restore();
