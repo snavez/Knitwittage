@@ -860,6 +860,15 @@ body.knit-active .workbench {
     align-items: center;
 }
 
+/* Stitch editor can be opened ON TOP of the Stitch Gallery overlay (right-
+   click → Edit, or the "Add Stitch Type" button inside the gallery footer).
+   With identical z-index, painting order falls to DOM order — and the editor
+   modal sits earlier in the markup, so it would render under the gallery.
+   Bumping it one tier higher keeps it above any other modal that's open. */
+#stitch-editor-modal {
+    z-index: 110;
+}
+
 .modal-overlay.open {
     display: flex;
 }
@@ -919,6 +928,20 @@ body.knit-active .workbench {
     gap: 16px;
     align-items: center;
     flex-wrap: wrap;
+}
+
+.print-icons-toggle {
+    font-family: var(--serif);
+    font-size: 0.85rem;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    user-select: none;
+}
+.print-icons-toggle input {
+    margin: 0;
 }
 
 .preview-canvas-wrapper {
@@ -1476,6 +1499,12 @@ body.knit-active .workbench {
 
 /* === Print Styles === */
 @media print {
+    /* Consistent margin on every page (the .print-view padding only applies
+       to the first page in browser pagination). */
+    @page {
+        margin: 10mm;
+    }
+
     body > *:not(.print-view) {
         display: none !important;
     }
@@ -1484,7 +1513,56 @@ body.knit-active .workbench {
         display: block !important;
         color: #000;
         background: #fff;
-        padding: 10mm;
+    }
+
+    /* One panel per page when the chart is split for size or pagination.
+       The first panel sits directly under the title; subsequent panels start
+       a new page. */
+    .print-panel {
+        margin-bottom: 8mm;
+    }
+    .print-panel-break {
+        break-before: page;
+        page-break-before: always;
+    }
+    .print-panel-label {
+        font-size: 9pt;
+        color: #555;
+        margin-bottom: 2mm;
+        text-align: center;
+    }
+
+    /* Rasterised user-stitch icons inside a print td. The td has fixed
+       width/height set inline; the img fills it. */
+    .print-grid td.icon-cell {
+        padding: 0;
+        line-height: 0;
+    }
+
+    /* Small corner marker showing the colour symbol on stitched + colored
+       cells, so B&W prints don't lose the colour identifier when the centre
+       is occupied by a stitch glyph or icon. */
+    .print-grid td.has-color-mark {
+        position: relative;
+    }
+    .print-color-mark {
+        position: absolute;
+        top: 0;
+        right: 1px;
+        font-size: 5pt;
+        font-weight: bold;
+        line-height: 1;
+        pointer-events: none;
+        text-shadow:
+             0  0   1px #fff,
+             0  0   1px #fff;
+    }
+    .print-stitch-icon {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        image-rendering: -webkit-optimize-contrast;
     }
 
     .print-title {
@@ -1502,13 +1580,20 @@ body.knit-active .workbench {
     }
 
     .print-grid-wrapper {
+        /* Multiple panels need to stack vertically (one per page); flex-row
+           would lay them side by side and overflow the page width. */
         display: flex;
-        justify-content: center;
+        flex-direction: column;
+        align-items: center;
         margin-bottom: 8mm;
     }
 
     .print-grid {
         border-collapse: collapse;
+        /* Fixed layout = column widths come from the declared td width, not
+           the widest content. Without this a long user-stitch code stretches
+           its column wider than the chart's other columns. */
+        table-layout: fixed;
     }
 
     .print-grid th {
@@ -1527,6 +1612,7 @@ body.knit-active .workbench {
         font-size: 8pt;
         font-weight: bold;
         vertical-align: middle;
+        overflow: hidden;
     }
 
     .print-grid td.painted-cell {
@@ -1548,6 +1634,30 @@ body.knit-active .workbench {
     .print-grid td.stitch-purl-cell {
         background: #f0f0f0 !important;
         color: #555 !important;
+    }
+
+    /* No-stitch cells fill with a hatched ::before that prints reliably —
+       print-color-adjust: exact tells modern browsers to honor the background
+       on print rather than stripping it. */
+    .print-grid td.no-stitch-cell,
+    .print-legend-swatch.no-stitch-cell {
+        position: relative;
+        border-color: #999 !important;
+    }
+    .print-grid td.no-stitch-cell::before,
+    .print-legend-swatch.no-stitch-cell::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: repeating-linear-gradient(
+            45deg,
+            #aaa,
+            #aaa 0.6mm,
+            #e8e8e8 0.6mm,
+            #e8e8e8 1.2mm
+        );
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
     }
 
     .print-grid .row-header {
@@ -2060,6 +2170,33 @@ body.knit-active .workbench {
     font-family: var(--mono);
     font-size: 0.72rem;
     line-height: 1.6;
+    color: var(--text-muted);
+}
+.gallery-search-row {
+    margin: 0 0 10px;
+}
+.gallery-search {
+    width: 100%;
+    padding: 7px 10px;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+.gallery-search:focus {
+    outline: none;
+    border-color: var(--ink);
+}
+.gallery-empty {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 24px 8px;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 0.78rem;
     color: var(--text-muted);
 }
 /* 4-column tile grid. Each tile mirrors the palette's .stitch-tile look so

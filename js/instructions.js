@@ -186,33 +186,27 @@ function formatInstructionsText(pattern, mode) {
         });
     }
 
-    // Check for lace/decrease features
-    const hasHoles = stitchRegion && stitchRegion.some(row =>
-        row && row.some(s => s === 'hole')
-    );
-    const hasLeans = stitchRegion && stitchRegion.some(row =>
-        row && row.some(s => s === 'k-right' || s === 'k-left')
-    );
-    const hasM1 = stitchRegion && stitchRegion.some(row =>
-        row && row.some(s => s === 'm1r' || s === 'm1l')
-    );
-    if (hasHoles || hasLeans || hasM1) {
+    // Lace/decrease abbreviations — list only those actually used. The earlier
+    // version dumped K2tog/SSK/P2tog/SSP/S2KP/SP2P whenever any decrease or YO
+    // appeared, which surfaced abbreviations the chart never contains.
+    const usedSet = new Set();
+    if (stitchRegion) {
+        for (const row of stitchRegion) {
+            if (!row) continue;
+            for (const s of row) {
+                if (typeof s === 'string') usedSet.add(s);
+            }
+        }
+    }
+    const abbrevs = [];
+    if (usedSet.has('hole'))    abbrevs.push('  YO = Yarn over (creates decorative hole)');
+    if (usedSet.has('k-right')) abbrevs.push('  K2tog = Knit 2 together (right-leaning decrease)');
+    if (usedSet.has('k-left'))  abbrevs.push('  SSK = Slip, slip, knit (left-leaning decrease)');
+    if (usedSet.has('m1r'))     abbrevs.push('  M1R = Make 1 right (pick up bar back-to-front, knit through front loop)');
+    if (usedSet.has('m1l'))     abbrevs.push('  M1L = Make 1 left (pick up bar front-to-back, knit through back loop)');
+    if (abbrevs.length > 0) {
         text += '\nLace/Decrease Abbreviations:\n';
-        if (hasHoles) text += '  YO = Yarn over (creates decorative hole)\n';
-        if (hasLeans || hasHoles) {
-            text += '  K2tog = Knit 2 together (right-leaning decrease)\n';
-            text += '  SSK = Slip, slip, knit (left-leaning decrease)\n';
-            text += '  P2tog = Purl 2 together (WS right-leaning decrease)\n';
-            text += '  SSP = Slip, slip, purl (WS left-leaning decrease)\n';
-        }
-        if (hasHoles) {
-            text += '  S2KP = Sl 1 kwise, K2tog, psso (centred double decrease, balances 2 YOs)\n';
-            text += '  SP2P = Sl 1 pwise, P2tog, pass sl st over (WS centred double decrease)\n';
-        }
-        if (hasM1) {
-            text += '  M1R = Make 1 right (pick up bar back-to-front, knit through front loop)\n';
-            text += '  M1L = Make 1 left (pick up bar front-to-back, knit through back loop)\n';
-        }
+        text += abbrevs.join('\n') + '\n';
     }
 
     // User-defined custom stitches used in this pattern
@@ -350,18 +344,18 @@ function encodeRowWithStitches(colorRow, stitchRow, defaultSt, labelMap, reverse
         } else if (stitch === 'k-right') {
             // Right-leaning decrease: K2tog on RS, P2tog on WS
             const isRS = (defaultSt === 'K');
-            tokens.push({ text: isRS ? 'K2tog' : 'P2tog', span: 1, isDecrease: true });
+            tokens.push({ text: isRS ? 'K2tog' : 'P2tog', color: colorRow[c], span: 1, isDecrease: true, collapsible: true });
         } else if (stitch === 'k-left') {
             // Left-leaning decrease: SSK on RS, SSP on WS
             const isRS = (defaultSt === 'K');
-            tokens.push({ text: isRS ? 'SSK' : 'SSP', span: 1, isDecrease: true });
+            tokens.push({ text: isRS ? 'SSK' : 'SSP', color: colorRow[c], span: 1, isDecrease: true, collapsible: true });
         } else if (stitch === 'm1r') {
-            tokens.push({ text: 'M1R', span: 1, isIncrease: true });
+            tokens.push({ text: 'M1R', color: colorRow[c], span: 1, isIncrease: true, collapsible: true });
         } else if (stitch === 'm1l') {
-            tokens.push({ text: 'M1L', span: 1, isIncrease: true });
+            tokens.push({ text: 'M1L', color: colorRow[c], span: 1, isIncrease: true, collapsible: true });
         } else if (stitch === 'hole') {
             // Hole = YO
-            tokens.push({ text: 'YO', span: 1, isHole: true });
+            tokens.push({ text: 'YO', color: colorRow[c], span: 1, isHole: true, collapsible: true });
         } else if (stitch === 'no-stitch') {
             // Skip — this cell doesn't exist in the pattern
             continue;
@@ -371,7 +365,7 @@ function encodeRowWithStitches(colorRow, stitchRow, defaultSt, labelMap, reverse
             // is listed separately at the top of the instructions).
             const def = (typeof StitchRegistry !== 'undefined') ? StitchRegistry.get(stitch) : null;
             if (def && def.source === 'user' && def.code) {
-                tokens.push({ text: def.code, span: 1 });
+                tokens.push({ text: def.code, color: colorRow[c], span: 1, collapsible: true });
                 continue;
             }
             // Simple stitch: knit, purl, or default
@@ -416,7 +410,7 @@ function encodeRowWithStitches(colorRow, stitchRow, defaultSt, labelMap, reverse
             tokens[i+2].isHole && !pairedHoles.has(i+2)) {
             // Found: YO, [knit], YO → convert middle to S2KP
             const technique = isRS ? 'S2KP' : 'SP2P';
-            tokens[i+1] = { text: technique, span: 1, converted: true };
+            tokens[i+1] = { text: technique, color: tokens[i+1].color, span: 1, converted: true, collapsible: true };
             pairedHoles.add(i);
             pairedHoles.add(i+2);
             // S2KP is a double decrease (-2), balanced by the 2 YOs (+2) — perfectly balanced
@@ -449,22 +443,38 @@ function encodeRowWithStitches(colorRow, stitchRow, defaultSt, labelMap, reverse
             } else {
                 technique = isAfterHole ? 'K2tog' : 'SSK';
             }
-            tokens[bestIdx] = { text: technique, span: 1, converted: true };
+            tokens[bestIdx] = { text: technique, color: tokens[bestIdx].color, span: 1, converted: true, collapsible: true };
         }
     }
     } // end if (unbalancedHoles > 0)
 
-    // Now run-length encode the simple stitch tokens, keeping cable tokens as-is
+    // Run-length encode adjacent same-shape tokens.
+    //   - Built-in K/P (no .text) collapse by st+color → "K4 in red".
+    //   - Collapsible single-cell tokens (M1R, K2tog, YO, user-simple, …)
+    //     collapse by .text → "K2tog × 3" / "M1R × 2".
+    //   - Cluster tokens (cables, multi-cell user stitches) emit as-is.
     const parts = [];
     let i = 0;
     while (i < tokens.length) {
         const tok = tokens[i];
-        if (tok.text) {
-            // Cable/twist — emit as-is
+        if (tok.text && !tok.collapsible) {
             parts.push(tok.text);
             i++;
+        } else if (tok.text && tok.collapsible) {
+            let count = tok.span;
+            let j = i + 1;
+            while (j < tokens.length && tokens[j].collapsible && tokens[j].text === tok.text && tokens[j].color === tok.color) {
+                count += tokens[j].span;
+                j++;
+            }
+            let formatted = count > 1 ? `${tok.text} × ${count}` : tok.text;
+            if (hasColors && tok.color !== null && tok.color !== undefined) {
+                const colorLabel = labelMap[tok.color] || tok.color;
+                formatted += ' in ' + colorLabel;
+            }
+            parts.push(formatted);
+            i = j;
         } else {
-            // Simple stitch — group consecutive same st+color
             let count = tok.span;
             let j = i + 1;
             while (j < tokens.length && !tokens[j].text &&

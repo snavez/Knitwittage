@@ -12,6 +12,7 @@ let crossIdCounter = 0;
 document.addEventListener('DOMContentLoaded', () => {
     initStitchPalette();
     bindStitchEvents();
+    wrapSetToolForStitchClear();
     // Re-render the palette if user stitches load in after startup.
     document.addEventListener('stitch-registry-updated', initStitchPalette);
     // The chart overlay caches stitch icons via def.drawCell — when a user
@@ -23,6 +24,23 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
     });
 });
+
+// Wrap app.js's setTool so picking any non-stitch tool clears the active
+// stitch selection. Done inside DOMContentLoaded (rather than at module
+// scope) so we don't depend on cables.js loading after app.js at parse
+// time — both files have to be parsed before the handler fires, so by then
+// `setTool` is guaranteed to exist.
+function wrapSetToolForStitchClear() {
+    if (typeof setTool !== 'function') return;
+    const origSetTool = setTool;
+    setTool = function(tool) {
+        origSetTool(tool);
+        if (tool !== 'stitch') {
+            state.activeStitch = null;
+            document.querySelectorAll('.stitch-tile').forEach(t => t.classList.remove('active'));
+        }
+    };
+}
 
 // ========================================
 // STITCH PALETTE (data-driven from StitchRegistry)
@@ -800,27 +818,20 @@ function drawCrossingOverlay(ctx, ox, oy, cellW, cellH, stitch, gap) {
     }
 }
 
-// When other tools are selected, deselect stitch palette
-const origSetTool = setTool;
-setTool = function(tool) {
-    origSetTool(tool);
-    if (tool !== 'stitch') {
-        state.activeStitch = null;
-        document.querySelectorAll('.stitch-tile').forEach(t => t.classList.remove('active'));
-    }
-};
-
 // ========================================
-// USER-STITCH CONTEXT MENU (right-click Edit / Delete)
+// LEFT-PANEL STITCH CONTEXT MENU (right-click → Hide stitch)
 // ========================================
+// Edit / Delete used to live here for user stitches; they've moved to the
+// gallery overlay. The left-panel menu now has a single Hide-stitch action,
+// available on every tile (built-in and user) — except the eraser, which
+// is a tool, not a stitch.
 function onStitchTileContext(e) {
     const tile = e.target.closest('.stitch-tile');
     if (!tile) return;
     const id = tile.dataset.stitch;
+    if (!id || id === 'stitch-erase') return;
     const def = StitchRegistry.get(id);
-    // Only user-defined stitches get a context menu — built-ins are part of
-    // the app and the eraser isn't really a stitch.
-    if (!def || def.source !== 'user') return;
+    if (!def) return;
 
     e.preventDefault();
     openStitchContextMenu(e.clientX, e.clientY, id);
@@ -847,12 +858,7 @@ function openStitchContextMenu(x, y, stitchId) {
                 const action = btn.dataset.action;
                 const id = menu.dataset.stitchId;
                 closeStitchContextMenu();
-                if (action === 'edit') {
-                    const def = StitchRegistry.get(id);
-                    if (def) openStitchEditor(def);
-                } else if (action === 'delete') {
-                    deleteUserStitch(id);
-                }
+                if (action === 'hide') hideStitchFromPalette(id);
             });
         });
         document.addEventListener('click', (evt) => {
@@ -862,6 +868,30 @@ function openStitchContextMenu(x, y, stitchId) {
             if (evt.key === 'Escape') closeStitchContextMenu();
         });
     }
+}
+
+// Drop a stitch from this project's palette without touching the gallery.
+// If the stitch is currently used in the chart we refuse — the palette filter
+// (`getEffectiveActiveStitches`) re-adds in-use stitches anyway, and silently
+// ignoring the click would just confuse the user.
+function hideStitchFromPalette(stitchId) {
+    const def = StitchRegistry.get(stitchId);
+    if (!def || stitchId === 'stitch-erase') return;
+    const usedSet = (typeof getStitchesUsedInGrid === 'function') ? getStitchesUsedInGrid() : new Set();
+    if (usedSet.has(stitchId)) {
+        if (typeof showToast === 'function') {
+            showToast(`"${def.label || stitchId}" is in use in the chart — clear it from the grid before hiding.`);
+        }
+        return;
+    }
+    // Legacy patterns can arrive with a null activeStitches (= "show all"); we
+    // need a concrete set before we can drop a single id from it.
+    if (!state.activeStitches) {
+        state.activeStitches = (typeof defaultActiveStitches === 'function')
+            ? defaultActiveStitches() : new Set();
+    }
+    state.activeStitches.delete(stitchId);
+    if (typeof initStitchPalette === 'function') initStitchPalette();
 }
 
 function closeStitchContextMenu() {

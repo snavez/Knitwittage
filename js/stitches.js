@@ -350,7 +350,7 @@ const BUILTIN_STITCHES = [
     {
         id: 'k-right', label: 'K2tog', sublabel: 'dec 1',
         title: 'Knit 2 together — right-leaning decrease',
-        kind: 'simple', code: 'K2tog', printSymbol: '/',
+        kind: 'simple', code: 'K2tog', printSymbol: '/-',
         drawIcon: (ctx, s) => drawKLeanTileIcon(ctx, s, 'right'),
         drawCell: (ctx, x, y, w, h) => drawKLeanCell(ctx, x, y, w, h, 'right'),
         order: 50,
@@ -358,7 +358,7 @@ const BUILTIN_STITCHES = [
     {
         id: 'k-left', label: 'SSK', sublabel: 'dec 1',
         title: 'Slip slip knit — left-leaning decrease',
-        kind: 'simple', code: 'SSK', printSymbol: '\\',
+        kind: 'simple', code: 'SSK', printSymbol: '-\\',
         drawIcon: (ctx, s) => drawKLeanTileIcon(ctx, s, 'left'),
         drawCell: (ctx, x, y, w, h) => drawKLeanCell(ctx, x, y, w, h, 'left'),
         order: 60,
@@ -366,8 +366,7 @@ const BUILTIN_STITCHES = [
     {
         id: 'm1r', label: 'M1R', sublabel: 'inc 1',
         title: 'Make 1 Right — invisible right-leaning increase',
-        kind: 'simple', code: 'M1R', printSymbol: 'M1R',
-        printSymbolFontPt: 6,
+        kind: 'simple', code: 'M1R', printSymbol: '/+',
         drawIcon: (ctx, s) => drawM1TileIcon(ctx, s, 'right'),
         drawCell: (ctx, x, y, w, h) => drawM1Cell(ctx, x, y, w, h, 'right'),
         order: 70,
@@ -375,8 +374,7 @@ const BUILTIN_STITCHES = [
     {
         id: 'm1l', label: 'M1L', sublabel: 'inc 1',
         title: 'Make 1 Left — invisible left-leaning increase',
-        kind: 'simple', code: 'M1L', printSymbol: 'M1L',
-        printSymbolFontPt: 6,
+        kind: 'simple', code: 'M1L', printSymbol: '+\\',
         drawIcon: (ctx, s) => drawM1TileIcon(ctx, s, 'left'),
         drawCell: (ctx, x, y, w, h) => drawM1Cell(ctx, x, y, w, h, 'left'),
         order: 80,

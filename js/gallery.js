@@ -1,10 +1,11 @@
 // === Stitch Gallery overlay ===
-// Manages the per-project active set (which stitches show in the palette) and
-// import/export of the user's full custom-stitch library to/from JSON files.
-// Edit/delete of user stitches stays on the palette context menu — the gallery
-// is just for activation and library transfer.
+// Manages the per-project active set (which stitches show in the palette),
+// edit / delete of user stitches (right-click a tile), and import/export of
+// the user's full custom-stitch library to/from JSON files. The left-panel
+// palette only carries hide-from-this-project — global library mutations
+// happen here so the user has one mental model: "this is the library".
 
-const GalleryUI = { open: false };
+const GalleryUI = { open: false, filter: '' };
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-view-gallery')?.addEventListener('click', openGalleryOverlay);
@@ -18,6 +19,15 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('gallery-load-input')?.click();
     });
     document.getElementById('gallery-load-input')?.addEventListener('change', handleGalleryFileLoad);
+    document.getElementById('gallery-add-stitch')?.addEventListener('click', () => {
+        // Editor opens on top of the gallery (z-index bump in CSS) — gallery
+        // stays open, so the user lands back here after creating the stitch.
+        if (typeof openStitchEditor === 'function') openStitchEditor();
+    });
+    document.getElementById('gallery-search')?.addEventListener('input', (e) => {
+        GalleryUI.filter = e.target.value || '';
+        renderGalleryList();
+    });
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && GalleryUI.open) closeGalleryOverlay();
     });
@@ -34,6 +44,11 @@ function openGalleryOverlay() {
     modal.classList.add('open');
     modal.style.display = 'flex';
     GalleryUI.open = true;
+    // Reset the search each time the overlay opens — stale filters from a
+    // previous session would just hide content the user expects to see.
+    GalleryUI.filter = '';
+    const search = document.getElementById('gallery-search');
+    if (search) search.value = '';
     renderGalleryList();
 }
 
@@ -43,6 +58,50 @@ function closeGalleryOverlay() {
     modal.classList.remove('open');
     modal.style.display = 'none';
     GalleryUI.open = false;
+    closeGalleryContextMenu();
+}
+
+// Gallery-only context menu (Edit / Delete) — shown by right-clicking a user
+// stitch tile inside the overlay. Built-ins never trigger it.
+function openGalleryContextMenu(x, y, stitchId) {
+    const menu = document.getElementById('gallery-context-menu');
+    if (!menu) return;
+    menu.style.display = 'flex';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.dataset.stitchId = stitchId;
+
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+
+    if (!menu.dataset.wired) {
+        menu.dataset.wired = '1';
+        menu.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                const id = menu.dataset.stitchId;
+                closeGalleryContextMenu();
+                if (action === 'edit') {
+                    const def = (typeof StitchRegistry !== 'undefined') ? StitchRegistry.get(id) : null;
+                    if (def && typeof openStitchEditor === 'function') openStitchEditor(def);
+                } else if (action === 'delete') {
+                    if (typeof deleteUserStitch === 'function') deleteUserStitch(id);
+                }
+            });
+        });
+        document.addEventListener('click', (evt) => {
+            if (menu.style.display === 'flex' && !menu.contains(evt.target)) closeGalleryContextMenu();
+        });
+        document.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Escape') closeGalleryContextMenu();
+        });
+    }
+}
+
+function closeGalleryContextMenu() {
+    const menu = document.getElementById('gallery-context-menu');
+    if (menu) menu.style.display = 'none';
 }
 
 function renderGalleryList() {
@@ -53,12 +112,32 @@ function renderGalleryList() {
         ? getEffectiveActiveStitches() : null;
     const usedInGrid = (typeof getStitchesUsedInGrid === 'function')
         ? getStitchesUsedInGrid() : new Set();
+    const filter = (GalleryUI.filter || '').trim().toLowerCase();
+    let shown = 0;
     for (const stitch of StitchRegistry.getAll()) {
         // The Erase tool is always available; it's not a stitch in the
         // gallery sense, so it doesn't appear here.
         if (stitch.id === 'stitch-erase') continue;
+        if (filter && !stitchMatchesFilter(stitch, filter)) continue;
         list.appendChild(buildGalleryItem(stitch, effective, usedInGrid));
+        shown++;
     }
+    if (shown === 0 && filter) {
+        const empty = document.createElement('p');
+        empty.className = 'gallery-empty';
+        empty.textContent = `No stitches match "${GalleryUI.filter}".`;
+        list.appendChild(empty);
+    }
+}
+
+// Match against code, id, label, and sublabel — so a user can find a stitch
+// by any of the strings they remember. Case-insensitive substring match.
+function stitchMatchesFilter(stitch, filter) {
+    const haystacks = [stitch.code, stitch.id, stitch.label, stitch.sublabel];
+    for (const h of haystacks) {
+        if (h && String(h).toLowerCase().includes(filter)) return true;
+    }
+    return false;
 }
 
 function buildGalleryItem(stitch, effectiveSet, usedSet) {
@@ -73,7 +152,7 @@ function buildGalleryItem(stitch, effectiveSet, usedSet) {
         item.title = 'Used in the current chart — clear it from the grid before hiding it.';
     } else {
         item.title = (stitch.source === 'user')
-            ? `${stitch.label || stitch.id} — click to toggle. Right-click the tile in the palette to edit or delete.`
+            ? `${stitch.label || stitch.id} — click to toggle. Right-click for edit / delete.`
             : `${stitch.label || stitch.id} — click to toggle. Built-in stitches can't be edited or deleted.`;
     }
 
@@ -112,6 +191,15 @@ function buildGalleryItem(stitch, effectiveSet, usedSet) {
         item.classList.toggle('is-active');
         if (typeof initStitchPalette === 'function') initStitchPalette();
     });
+
+    // Right-click on a USER stitch tile inside the gallery → Edit / Delete.
+    // Built-in tiles get no context menu (they can't be edited or removed).
+    if (stitch.source === 'user') {
+        item.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            openGalleryContextMenu(e.clientX, e.clientY, stitch.id);
+        });
+    }
 
     if (iconEl.tagName === 'CANVAS' && typeof stitch.drawIcon === 'function') {
         const ctx = iconEl.getContext('2d');

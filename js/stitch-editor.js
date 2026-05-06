@@ -58,7 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (editorState.pending) {
             editorState.pending.strokeWidth = editorState.strokeWidth;
             redrawCanvas();
-            renderPreview();
+            renderEditorTilePreview();
         }
     });
     // Fill swatches (4 colours + None). Built lazily in renderColorSwatches.
@@ -111,7 +111,7 @@ function openStitchEditor(existing = null) {
     modal.style.display = 'flex';
     editorState.open = true;
     setupCanvas();
-    renderPreview();
+    renderEditorTilePreview();
     // Wait one frame so layout has settled before measuring the canvas.
     requestAnimationFrame(updateTextSliderRange);
     setTimeout(() => document.getElementById('st-code').focus(), 50);
@@ -206,7 +206,7 @@ function applyColourToPending() {
     if (!p) return;
     p.stroke = editorState.stroke;
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 function renderFillSwatches() {
@@ -246,7 +246,7 @@ function applyFillToPending() {
     if (editorState.fill == null) delete p.fill;
     else p.fill = editorState.fill;
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 // The slider's CSS-pixel range needs to track the canvas's display size, or
@@ -433,7 +433,7 @@ function onPointerMove(e) {
             pending.cx = ell.cx; pending.cy = ell.cy; pending.rx = ell.rx; pending.ry = ell.ry;
         }
         redrawCanvas();
-        renderPreview();
+        renderEditorTilePreview();
         return;
     }
 
@@ -444,7 +444,7 @@ function onPointerMove(e) {
         const dy = p.y - m.startPoint.y;
         translateShape(editorState.pending, m.origShape, dx, dy);
         redrawCanvas();
-        renderPreview();
+        renderEditorTilePreview();
         return;
     }
 
@@ -519,7 +519,7 @@ function onPointerUp() {
     }
     editorState.drawing = null;
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 // ---------- Pending shape helpers (move / hit-test / commit) ----------
@@ -566,7 +566,7 @@ function commitPending() {
     editorState.shapes.push(editorState.pending);
     editorState.pending = null;
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 // Done button / explicit "lock everything in" — flushes pending shape and
@@ -739,7 +739,7 @@ function undoLastShape() {
         editorState.shapes.pop();
     }
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 function clearCanvas() {
@@ -748,10 +748,10 @@ function clearCanvas() {
     editorState.drawing = null;
     editorState.moving = null;
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
-function renderPreview() {
+function renderEditorTilePreview() {
     const canvas = document.getElementById('st-preview-canvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -934,7 +934,7 @@ function commitLiveText() {
     content.textContent = '';
     overlay.style.display = 'none';
     redrawCanvas();
-    renderPreview();
+    renderEditorTilePreview();
 }
 
 // ---------- Code + auto-fill ----------

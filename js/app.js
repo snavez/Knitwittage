@@ -169,11 +169,12 @@ function initPalette() {
 
 function selectColor(color) {
     state.activeColor = color;
-    // Picking a colour shouldn't kick the user out of Fill / Select / Stitch
-    // mode — those modes still consume a colour. Only switch to Paint if we
-    // were in a no-colour mode (currently nothing — Erase toggles are
-    // independent and don't change activeTool).
-    if (state.activeTool !== 'fill' && state.activeTool !== 'select' && state.activeTool !== 'stitch') {
+    // Picking a colour is implicitly "I want to paint with this" — switch to
+    // Paint unless the user is in Fill mode, which legitimately consumes a
+    // colour without needing a tool change. Select / Stitch modes used to be
+    // exceptions too, but the user reported wanting to drop straight into
+    // Paint from those.
+    if (state.activeTool !== 'fill') {
         state.activeTool = 'paint';
     }
     updateToolButtons();
@@ -928,8 +929,8 @@ function updateFirstRowPickerVisibility() {
 // === Status Bar ===
 // === Zoom ===
 // Excel-style: Ctrl + scroll wheel changes zoom, Ctrl +/- and Ctrl 0 keyboard.
-// Cursor-anchored when triggered by the wheel so the point under the cursor
-// stays under the cursor across the zoom change.
+// All paths anchor to the cursor (or last cursor position over the canvas)
+// so the point under the cursor stays under the cursor across the zoom.
 const ZOOM_MIN = 0.1;   // ~2px cells — lets a 300x300 chart fit a laptop screen
 const ZOOM_MAX = 4.0;
 const ZOOM_STEP = 1.15;
@@ -974,8 +975,8 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
         const newAreaRect = canvasArea.getBoundingClientRect();
         const currentContentX = anchorClientX - newWrapRect.left;
         const currentContentY = anchorClientY - newWrapRect.top;
-        canvasArea.scrollLeft += currentContentX - targetContentX;
-        canvasArea.scrollTop  += currentContentY - targetContentY;
+        canvasArea.scrollLeft += targetContentX - currentContentX;
+        canvasArea.scrollTop  += targetContentY - currentContentY;
     }
 
     updateZoomIndicator();
@@ -990,6 +991,23 @@ function bindZoom() {
     const canvasArea = document.querySelector('.canvas-area');
     if (!canvasArea) return;
 
+    // Track the last cursor position over the canvas so keyboard zoom
+    // (Ctrl +/-) can anchor to wherever the user is looking. Wheel-zoom
+    // gets its anchor from the wheel event itself; this is for the paths
+    // that don't carry one.
+    let lastCanvasX = null, lastCanvasY = null;
+    canvasArea.addEventListener('mousemove', (e) => {
+        lastCanvasX = e.clientX;
+        lastCanvasY = e.clientY;
+    });
+    canvasArea.addEventListener('mouseleave', () => {
+        // Forget the cursor on leave — falling back to the canvas centre is
+        // less surprising than zooming toward an off-canvas anchor that's
+        // probably stale (e.g. user moved to the side panels).
+        lastCanvasX = null;
+        lastCanvasY = null;
+    });
+
     // Ctrl (or Cmd) + wheel = zoom; pass wheel through for scroll otherwise.
     canvasArea.addEventListener('wheel', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
@@ -999,6 +1017,17 @@ function bindZoom() {
         setZoom(state.zoom * factor, e.clientX, e.clientY);
     }, { passive: false });
 
+    // Pick the anchor for keyboard / pill-click zoom: cursor if we have
+    // one, otherwise the centre of the visible canvas area so the user's
+    // current view doesn't drift toward the top-left after a resize.
+    const keyboardAnchor = () => {
+        if (lastCanvasX != null && lastCanvasY != null) {
+            return { x: lastCanvasX, y: lastCanvasY };
+        }
+        const rect = canvasArea.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+
     // Keyboard shortcuts — Ctrl +/-/0. Match against both layouts.
     document.addEventListener('keydown', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
@@ -1007,13 +1036,16 @@ function bindZoom() {
         if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target && e.target.isContentEditable)) return;
         if (e.key === '+' || e.key === '=') {
             e.preventDefault();
-            setZoom(state.zoom * ZOOM_STEP);
+            const a = keyboardAnchor();
+            setZoom(state.zoom * ZOOM_STEP, a.x, a.y);
         } else if (e.key === '-' || e.key === '_') {
             e.preventDefault();
-            setZoom(state.zoom / ZOOM_STEP);
+            const a = keyboardAnchor();
+            setZoom(state.zoom / ZOOM_STEP, a.x, a.y);
         } else if (e.key === '0') {
             e.preventDefault();
-            setZoom(1.0);
+            const a = keyboardAnchor();
+            setZoom(1.0, a.x, a.y);
         }
     });
 

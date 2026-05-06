@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=109">
+    <link rel="stylesheet" href="css/style.css?v=125">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -125,7 +125,7 @@
             <!-- Stitches -->
             <div class="panel-section">
                 <div class="panel-section-head">
-                    <span class="panel-section-title">Stitch Gallery</span>
+                    <span class="panel-section-title">Stitches</span>
                     <span class="panel-section-hint">click to select</span>
                 </div>
                 <!-- Tiles injected by StitchRegistry (see js/stitches.js + js/cables.js) -->
@@ -327,6 +327,10 @@
                 <button id="btn-regenerate-instructions" title="Regenerate from grid (overwrites edits)">Regenerate</button>
                 <button id="btn-copy-instructions">Copy to Clipboard</button>
                 <button id="btn-download-instructions">Download .txt</button>
+                <label class="print-icons-toggle" title="Render custom-stitch icons in the printed chart instead of their text codes">
+                    <input type="checkbox" id="print-icons-toggle" checked>
+                    Icons in chart
+                </label>
                 <button id="btn-print-instructions" class="btn-primary">Print / PDF</button>
                 <span class="instructions-edit-hint" id="instructions-edit-hint">Click text to edit</span>
             </div>
@@ -533,8 +537,16 @@
         </div>
     </div>
 
-    <!-- Context menu for user-defined stitch tiles (shown on right-click) -->
+    <!-- Context menu for left-panel stitch tiles (right-click). Hide-only —
+         Edit / Delete have moved to the gallery overlay (those are global
+         library operations, while hiding affects just this project's palette). -->
     <div class="stitch-context-menu" id="stitch-context-menu" style="display:none;">
+        <button data-action="hide">Hide stitch</button>
+    </div>
+
+    <!-- Context menu for gallery-overlay tiles (right-click on user stitches).
+         Edit / Delete are gallery-only since they mutate the global library. -->
+    <div class="stitch-context-menu" id="gallery-context-menu" style="display:none;">
         <button data-action="edit">Edit</button>
         <button data-action="delete" class="danger">Delete</button>
     </div>
@@ -543,17 +555,21 @@
     <div class="modal-overlay" id="gallery-modal">
         <div class="modal modal-narrow gallery-modal">
             <div class="modal-header">
-                <h2>Stitches</h2>
+                <h2>Stitch Gallery</h2>
                 <button class="modal-close" id="gallery-close" title="Close">&times;</button>
             </div>
             <div class="modal-body gallery-body">
-                <p class="gallery-hint">Click a stitch to add it to this project's palette (or remove it). Built-in stitches can be hidden but not edited or deleted; user stitches can be edited or deleted by right-clicking their tile in the palette.</p>
+                <p class="gallery-hint">Click a stitch to add it to this project's palette (or remove it). Right-click a custom stitch to edit or delete it. Built-in stitches can be hidden but not edited or deleted.</p>
+                <div class="gallery-search-row">
+                    <input type="search" id="gallery-search" class="gallery-search" placeholder="Filter by code, label, or sublabel…" autocomplete="off" spellcheck="false">
+                </div>
                 <div class="gallery-list" id="gallery-list">
                     <!-- items injected by gallery.js -->
                 </div>
             </div>
             <div class="modal-footer gallery-footer">
                 <input type="file" id="gallery-load-input" accept="application/json,.json" style="display:none">
+                <button id="gallery-add-stitch" title="Design a new custom stitch and add it to your library">+ Add Stitch Type</button>
                 <button id="gallery-load" title="Load a gallery file (.json) to merge those stitches into your library">Load gallery</button>
                 <button id="gallery-save" title="Save your full custom-stitch library to a .json file you can move between devices">Save gallery</button>
                 <button id="gallery-done" class="btn-primary">Done</button>
@@ -592,19 +608,19 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-view.js?v=109"></script>
-    <script src="js/app.js?v=109"></script>
-    <script src="js/preview.js?v=109"></script>
-    <script src="js/print.js?v=109"></script>
-    <script src="js/instructions.js?v=109"></script>
-    <script src="js/random.js?v=109"></script>
-    <script src="js/image.js?v=109"></script>
-    <script src="js/stitches.js?v=109"></script>
-    <script src="js/stitch-editor.js?v=109"></script>
-    <script src="js/gallery.js?v=109"></script>
-    <script src="js/cables.js?v=109"></script>
-    <script src="js/knit-mode.js?v=109"></script>
-    <script src="js/tabs.js?v=109"></script>
+    <script src="js/grid-view.js?v=125"></script>
+    <script src="js/app.js?v=125"></script>
+    <script src="js/preview.js?v=125"></script>
+    <script src="js/print.js?v=125"></script>
+    <script src="js/instructions.js?v=125"></script>
+    <script src="js/random.js?v=125"></script>
+    <script src="js/image.js?v=125"></script>
+    <script src="js/stitches.js?v=125"></script>
+    <script src="js/stitch-editor.js?v=125"></script>
+    <script src="js/gallery.js?v=125"></script>
+    <script src="js/cables.js?v=125"></script>
+    <script src="js/knit-mode.js?v=125"></script>
+    <script src="js/tabs.js?v=125"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {
