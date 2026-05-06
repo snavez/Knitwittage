@@ -1003,16 +1003,22 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
     if (typeof renderSelectionOverlay === 'function') renderSelectionOverlay();
 
-    // Restore the anchor: after the wrapper resizes by (newZoom/oldZoom),
-    // nudge the scroll so the same content point sits under the cursor.
+    // Pull-to-centre: after the wrapper resizes by (newZoom/oldZoom), scroll
+    // so the content the user was hovering is at the viewport CENTRE (not
+    // pinned at the cursor). Zooming in then "magnifies the cursor region
+    // into the middle of the pane" rather than letting it drift toward a
+    // corner. Falls back to cursor-anchor when no anchor was supplied.
     if (canvasArea && gridWrapper && contentX != null) {
         const ratio = newZoom / oldZoom;
         const targetContentX = contentX * ratio;
         const targetContentY = contentY * ratio;
         const newWrapRect = gridWrapper.getBoundingClientRect();
         const newAreaRect = canvasArea.getBoundingClientRect();
-        const currentContentX = anchorClientX - newWrapRect.left;
-        const currentContentY = anchorClientY - newWrapRect.top;
+        // Where in client-coords we want targetContent to land.
+        const targetClientX = newAreaRect.left + newAreaRect.width / 2;
+        const targetClientY = newAreaRect.top + newAreaRect.height / 2;
+        const currentContentX = targetClientX - newWrapRect.left;
+        const currentContentY = targetClientY - newWrapRect.top;
         canvasArea.scrollLeft += targetContentX - currentContentX;
         canvasArea.scrollTop  += targetContentY - currentContentY;
     }
@@ -1047,12 +1053,28 @@ function bindZoom() {
     });
 
     // Ctrl (or Cmd) + wheel = zoom; pass wheel through for scroll otherwise.
+    // Coalesce rapid wheel events into one zoom per animation frame — at
+    // 1000×1000 each canvas resize allocates ~80MB of GPU memory, and
+    // doing that per wheel tick can starve the browser's GPU context
+    // (symptom: the whole window blanks and recovers in a degraded state).
+    let wheelAccum = 0;
+    let wheelAnchorX = 0, wheelAnchorY = 0;
+    let wheelFrame = null;
     canvasArea.addEventListener('wheel', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
-        const dir = e.deltaY < 0 ? 1 : -1;
-        const factor = dir > 0 ? ZOOM_STEP : 1 / ZOOM_STEP;
-        setZoom(state.zoom * factor, e.clientX, e.clientY);
+        wheelAccum += (e.deltaY < 0 ? 1 : -1);
+        wheelAnchorX = e.clientX;
+        wheelAnchorY = e.clientY;
+        if (wheelFrame) return;
+        wheelFrame = requestAnimationFrame(() => {
+            wheelFrame = null;
+            const steps = wheelAccum;
+            wheelAccum = 0;
+            if (steps === 0) return;
+            const factor = Math.pow(steps > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, Math.abs(steps));
+            setZoom(state.zoom * factor, wheelAnchorX, wheelAnchorY);
+        });
     }, { passive: false });
 
     // Pick the anchor for keyboard / pill-click zoom: cursor if we have

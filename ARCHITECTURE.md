@@ -303,11 +303,15 @@ implicitly the module's public API. Listed here for orientation.
   is needed.
 - `selectColor(color)` — sets active colour; auto-switches to Paint unless
   in Fill mode.
-- `setZoom(newZoom, anchorClientX, anchorClientY)` — chart zoom with
-  cursor-anchored scroll. Capped by `maxZoomForCurrentGrid()` so the
-  canvas never exceeds ~16,000px on either axis (browsers, especially
-  Safari/iOS, silently fail to draw past that — symptom: white-out at a
-  specific zoom level on big grids).
+- `setZoom(newZoom, anchorClientX, anchorClientY)` — chart zoom that
+  pulls the content under the anchor toward the viewport CENTRE (not
+  pinning the anchor at the cursor). Capped by `maxZoomForCurrentGrid()`
+  so the canvas never exceeds ~16,000px on either axis (browsers,
+  especially Safari/iOS, silently fail to draw past that — symptom:
+  white-out at a specific zoom level on big grids). Wheel-zoom is
+  rAF-coalesced (multiple wheel events within one frame collapse into
+  one canvas resize) — without that, rapid scroll-wheel zoom on big
+  grids exhausts GPU memory and blanks the browser.
 - `showToast(msg, opts)` — non-blocking notification.
 - `confirmDialog({title, message, buttons})` — async confirmation.
 - `isLightColor(hex)`, `hexToColorName(hex)` — colour utilities.

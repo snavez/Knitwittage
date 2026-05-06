@@ -680,8 +680,8 @@ body.knit-active .workbench {
     z-index: 5;
     background: #fff;
 }
-.row-numbers-left { left: 16px; }   /* offset for grid-wrapper padding */
-.row-numbers-right { right: 16px; }
+.row-numbers-left { left: 0; }
+.row-numbers-right { right: 0; }
 
 .row-number {
     height: var(--cell-size);
@@ -737,12 +737,12 @@ body.knit-active .workbench {
 
 .col-numbers-top {
     margin-bottom: 4px;
-    top: 16px; /* grid-wrapper padding */
+    top: 0;
 }
 
 .col-numbers-bottom {
     margin-top: 4px;
-    bottom: 16px;
+    bottom: 0;
 }
 
 .col-number {
