@@ -665,13 +665,23 @@ body.knit-active .workbench {
 }
 
 /* === Row/Column Numbers === */
+/* Sticky label rails: stay pinned to the corresponding edge of the canvas
+   viewport so the user can always read which row/stitch they're on, even
+   when scrolled deep into a 1000×1000 chart. The scroll ancestor for sticky
+   is .canvas-area; an opaque background and z-index keep the labels above
+   the canvas they overlap when scrolled. */
 .row-numbers {
     display: flex;
     flex-direction: column;
     padding-top: calc(18px + 4px + var(--cell-gap));
     gap: var(--cell-gap);
     flex-shrink: 0;
+    position: sticky;
+    z-index: 5;
+    background: #fff;
 }
+.row-numbers-left { left: 16px; }   /* offset for grid-wrapper padding */
+.row-numbers-right { right: 16px; }
 
 .row-number {
     height: var(--cell-size);
@@ -720,14 +730,19 @@ body.knit-active .workbench {
     display: flex;
     gap: var(--cell-gap);
     padding-left: 0;
+    position: sticky;
+    z-index: 4; /* below row labels so corner overlap reads cleanly */
+    background: #fff;
 }
 
 .col-numbers-top {
     margin-bottom: 4px;
+    top: 16px; /* grid-wrapper padding */
 }
 
 .col-numbers-bottom {
     margin-top: 4px;
+    bottom: 16px;
 }
 
 .col-number {

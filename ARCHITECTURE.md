@@ -304,7 +304,10 @@ implicitly the module's public API. Listed here for orientation.
 - `selectColor(color)` — sets active colour; auto-switches to Paint unless
   in Fill mode.
 - `setZoom(newZoom, anchorClientX, anchorClientY)` — chart zoom with
-  cursor-anchored scroll.
+  cursor-anchored scroll. Capped by `maxZoomForCurrentGrid()` so the
+  canvas never exceeds ~16,000px on either axis (browsers, especially
+  Safari/iOS, silently fail to draw past that — symptom: white-out at a
+  specific zoom level on big grids).
 - `showToast(msg, opts)` — non-blocking notification.
 - `confirmDialog({title, message, buttons})` — async confirmation.
 - `isLightColor(hex)`, `hexToColorName(hex)` — colour utilities.
@@ -609,6 +612,31 @@ or you'll wipe the user's custom stitches.
 [js/app.js:60](js/app.js) — the 10 built-in ids that show in a fresh
 project's palette. Adding a new built-in stitch? Decide whether it should
 be in the default palette or hidden (user enables it via gallery).
+
+### 7.10 Canvas size limit at large grids
+
+Browsers (especially Safari/iOS) cap a single `<canvas>` element's
+largest dimension at ~16,384px. With the grid cap at 1000 cells, that
+meant zoom > ~68% on a 1000×1000 grid produced a canvas wider than the
+limit and the whole canvas silently went white. `maxZoomForCurrentGrid()`
+in [js/app.js](js/app.js) caps zoom dynamically; `setZoom` clamps every
+incoming zoom request through it. If you ever switch to multi-canvas
+tiling, this cap can be relaxed.
+
+### 7.11 Adaptive history cap (`effectiveMaxHistory`)
+
+[js/app.js:740](js/app.js) — undo cap scales with cell count. 200×200
+gets 50 levels; 1000×1000 gets ~5 (full snapshots at 1M cells run ~16MB
+each, and 50 of them OOMs the browser). If you change `pushHistory` to
+use diffs instead of full snapshots, this cap can go back to a flat 50.
+
+### 7.12 Sticky label rails depend on `.canvas-area` being the scroll ancestor
+
+The row-/col-number rails use `position: sticky` with offsets relative
+to the nearest scrolling ancestor — currently `.canvas-area`. If you
+restructure the workbench DOM so a different ancestor handles scroll,
+the labels stop pinning. White opaque background + z-index keeps the
+labels above the canvas they overlap when scrolled.
 
 ---
 

@@ -22,6 +22,7 @@ const GridView = (function () {
     const CELL_BASE = 22;    // matches CSS --cell-base
     const GAP_PX = 1;        // matches CSS --cell-gap
     const EMPTY_BG = '#fbf7ec'; // matches --surface
+    const GRIDLINE_COLOR = '#ddd0b2'; // matches --border-soft (gap colour)
 
     let rows = 0, cols = 0;
     let container = null;
@@ -140,12 +141,24 @@ const GridView = (function () {
         if (!ensureLayers()) return;
         const w = baseCanvas.width, h = baseCanvas.height;
         const s = cellSize();
-        // Single fill for the whole background, then batched per-colour passes
-        // for the painted cells. Setting fillStyle is expensive (CSS colour
-        // parsing); doing it once per unique colour instead of once per cell
-        // is the difference between ~1500ms and ~150ms at 1000×1000.
+        const stp = step();
+        // 1) Paint the whole canvas EMPTY_BG. One fillStyle, one fillRect.
         baseCtx.fillStyle = EMPTY_BG;
         baseCtx.fillRect(0, 0, w, h);
+        // 2) Punch out 1px gridlines at every gap position. 2N strips total
+        //    (vertical + horizontal) — much fewer ops than per-cell fills,
+        //    and matches the wrapper's --border-soft tone the old transparent
+        //    -gap canvas was relying on.
+        baseCtx.fillStyle = GRIDLINE_COLOR;
+        for (let c = 1; c < cols; c++) {
+            baseCtx.fillRect(c * stp - GAP_PX, 0, GAP_PX, h);
+        }
+        for (let r = 1; r < rows; r++) {
+            baseCtx.fillRect(0, r * stp - GAP_PX, w, GAP_PX);
+        }
+        // 3) Bucket painted cells by colour and overpaint with one fillStyle
+        //    per unique colour, batched fillRects. Per-cell fillStyle was
+        //    the bottleneck at 1000×1000 (~1.5s).
         const byColor = new Map();
         for (let r = 0; r < rows; r++) {
             const row = state.grid[r];
@@ -155,7 +168,7 @@ const GridView = (function () {
                 if (color == null) continue;
                 let list = byColor.get(color);
                 if (!list) { list = []; byColor.set(color, list); }
-                list.push(r, c); // pairs of (r, c) flat — half the GC of {r,c} objects
+                list.push(r, c);
             }
         }
         for (const [color, rcPairs] of byColor) {

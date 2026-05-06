@@ -955,9 +955,26 @@ function updateFirstRowPickerVisibility() {
 const ZOOM_MIN = 0.1;   // ~2px cells — lets a 300x300 chart fit a laptop screen
 const ZOOM_MAX = 4.0;
 const ZOOM_STEP = 1.15;
+// Browsers cap a single canvas's largest dimension somewhere around 16 384px
+// (Safari/iOS in particular). Past that, the canvas silently fails to draw —
+// the symptom is a white-out at the zoom level that pushes total chart width
+// past the limit. Cap the effective zoom dynamically based on grid size so we
+// never produce a canvas that big.
+const MAX_CANVAS_PX = 16000;
+
+function maxZoomForCurrentGrid() {
+    const N = Math.max(state.rows || 1, state.cols || 1);
+    if (N <= 1) return ZOOM_MAX;
+    // step ≈ round(22 * zoom) + 1 (gap). Solve N * step ≤ MAX_CANVAS_PX.
+    const z = (MAX_CANVAS_PX / N - 1) / 22;
+    return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+}
 
 function setZoom(newZoom, anchorClientX, anchorClientY) {
     newZoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, newZoom));
+    // Hard ceiling driven by browser canvas-size limits — only kicks in for
+    // big grids; small grids always reach ZOOM_MAX.
+    newZoom = Math.min(newZoom, maxZoomForCurrentGrid());
     const oldZoom = state.zoom;
     if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
