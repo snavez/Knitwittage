@@ -202,6 +202,20 @@ function initGrid(rows, cols) {
         }
     }
 
+    // After a resize the previous zoom may exceed the new grid's canvas-size
+    // cap (going from 20×20 at 1.0× to 1000×1000 at 1.0× would produce a
+    // 22 000-pixel canvas — past the browser limit, hence the white-out).
+    // Re-apply the cap here so the chart always renders.
+    if (typeof maxZoomForCurrentGrid === 'function') {
+        const cap = maxZoomForCurrentGrid();
+        if (state.zoom > cap) {
+            // Use setZoom for the side-effects (CSS var, redraw, scroll
+            // restore); fall back to a direct write if it isn't ready yet.
+            if (typeof setZoom === 'function') setZoom(cap);
+            else state.zoom = cap;
+        }
+    }
+
     renderGrid();
 }
 
@@ -952,8 +966,13 @@ function updateFirstRowPickerVisibility() {
 // Excel-style: Ctrl + scroll wheel changes zoom, Ctrl +/- and Ctrl 0 keyboard.
 // All paths anchor to the cursor (or last cursor position over the canvas)
 // so the point under the cursor stays under the cursor across the zoom.
-const ZOOM_MIN = 0.1;   // ~2px cells — lets a 300x300 chart fit a laptop screen
-const ZOOM_MAX = 4.0;
+const ZOOM_MIN = 0.1;   // ~2px cells — lets a 1000×1000 chart fit a laptop screen
+// ZOOM_MAX caps "zoomed in" at the same cell resolution as the default 20×20
+// view (22px cells). Going beyond that doesn't add useful detail and
+// exaggerated cells make sticky-label positioning awkward at large grid
+// sizes. Big grids may still be capped lower by maxZoomForCurrentGrid()
+// because of the browser canvas-size limit.
+const ZOOM_MAX = 1.0;
 const ZOOM_STEP = 1.15;
 // Browsers cap a single canvas's largest dimension somewhere around 16 384px
 // (Safari/iOS in particular). Past that, the canvas silently fails to draw —

@@ -305,13 +305,16 @@ implicitly the module's public API. Listed here for orientation.
   in Fill mode.
 - `setZoom(newZoom, anchorClientX, anchorClientY)` — chart zoom that
   pulls the content under the anchor toward the viewport CENTRE (not
-  pinning the anchor at the cursor). Capped by `maxZoomForCurrentGrid()`
-  so the canvas never exceeds ~16,000px on either axis (browsers,
-  especially Safari/iOS, silently fail to draw past that — symptom:
-  white-out at a specific zoom level on big grids). Wheel-zoom is
-  rAF-coalesced (multiple wheel events within one frame collapse into
-  one canvas resize) — without that, rapid scroll-wheel zoom on big
-  grids exhausts GPU memory and blanks the browser.
+  pinning the anchor at the cursor). Two caps: `ZOOM_MAX` (currently
+  `1.0` — same cell resolution as the default view, kept low so big
+  charts and small charts share the same max zoom-in feel) and
+  `maxZoomForCurrentGrid()` (canvas-size cap, ~16,000px on either
+  axis; only kicks in for grids bigger than ~700 cells). Wheel-zoom
+  is hard-throttled to ~10 zooms / second via setTimeout —
+  rAF-only coalescing was still permitting up to 60 resizes / second,
+  which exhausted GPU memory on big grids and blanked the browser.
+  `initGrid` re-applies the cap after a resize, so going from a small
+  grid at 1.0× to a big one no longer produces a too-big canvas.
 - `showToast(msg, opts)` — non-blocking notification.
 - `confirmDialog({title, message, buttons})` — async confirmation.
 - `isLightColor(hex)`, `hexToColorName(hex)` — colour utilities.
