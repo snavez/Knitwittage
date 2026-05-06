@@ -232,12 +232,19 @@ function renderGrid() {
 
 // When cells shrink under zoom, row/col labels overlap — show only every Nth.
 // Always keep the first row/col and the last knitting row/col visible.
-function labelStride(cellPx) {
-    if (cellPx >= 14) return 1;
-    if (cellPx >= 9)  return 2;
-    if (cellPx >= 6)  return 5;
-    if (cellPx >= 4)  return 10;
-    return 25;
+// Label stride accounts for both cell size AND digit count: a 3-digit label
+// (e.g. "857") is roughly 3 × monospace digit width + breathing room ≈ 27px,
+// so even at cellPx = 14 we need to skip every other label to prevent
+// overlap. `totalCells` is the count along whichever axis we're labelling so
+// the digit count is correct (1000 → 4 digits, 20 → 2).
+function labelStride(cellPx, totalCells) {
+    const digits = String(totalCells || 1).length;
+    const labelWidth = digits * 7 + 6; // ~7px/digit mono + 6px padding
+    if (cellPx >= labelWidth)        return 1;
+    if (cellPx >= labelWidth / 2)    return 2;
+    if (cellPx >= labelWidth / 5)    return 5;
+    if (cellPx >= labelWidth / 10)   return 10;
+    return Math.max(1, Math.ceil(labelWidth / cellPx));
 }
 
 function renderNumbers() {
@@ -251,7 +258,11 @@ function renderNumbers() {
     if (colNumsBot) colNumsBot.innerHTML = '';
 
     const cellPx = (typeof GridView !== 'undefined') ? GridView.getCellSize() : 22;
-    const stride = labelStride(cellPx);
+    // Strides are per-axis because digit counts differ — a 1000×30 chart has
+    // 4-digit row numbers but 2-digit col numbers, and they collide at
+    // different cell sizes.
+    const rowStride = labelStride(cellPx, state.rows);
+    const colStride = labelStride(cellPx, state.cols);
 
     function makeArrow(arrow) {
         return `<span class="row-arrow">${arrow}</span>`;
@@ -260,10 +271,10 @@ function renderNumbers() {
     // Whether this knitting-row number should display a label. Hide
     // intermediate labels when cells are small so they don't overlap.
     function showRow(kRow) {
-        return kRow === 1 || kRow === state.rows || (kRow % stride === 0);
+        return kRow === 1 || kRow === state.rows || (kRow % rowStride === 0);
     }
     function showCol(cNum) {
-        return cNum === 1 || cNum === state.cols || (cNum % stride === 0);
+        return cNum === 1 || cNum === state.cols || (cNum % colStride === 0);
     }
 
     // Row number rules:
@@ -625,8 +636,13 @@ function bindEvents() {
 
     // Toolbar buttons
     document.getElementById('btn-resize').addEventListener('click', () => {
-        const rows = clamp(+document.getElementById('grid-rows').value, 2, 1000);
-        const cols = clamp(+document.getElementById('grid-cols').value, 2, 1000);
+        const rawRows = +document.getElementById('grid-rows').value;
+        const rawCols = +document.getElementById('grid-cols').value;
+        const rows = clamp(rawRows, 2, 1000);
+        const cols = clamp(rawCols, 2, 1000);
+        if (rawRows > 1000 || rawCols > 1000) {
+            showToast('Max grid size is 1000×1000 — clamped to fit.', { tone: 'error' });
+        }
         document.getElementById('grid-rows').value = rows;
         document.getElementById('grid-cols').value = cols;
         // Knit mode caches per-row instructions for the CURRENT grid geometry;
@@ -998,18 +1014,21 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
     const canvasArea = document.querySelector('.canvas-area');
-    const gridWrapper = document.querySelector('.grid-wrapper');
+    const baseCanvas = document.querySelector('.grid-base-canvas');
 
-    // Pre-zoom: capture the content-space position under the anchor so we can
-    // restore it after the reflow.
-    let contentX = null, contentY = null, viewX = null, viewY = null;
-    if (canvasArea && gridWrapper && anchorClientX != null) {
-        const wrapRect = gridWrapper.getBoundingClientRect();
-        const areaRect = canvasArea.getBoundingClientRect();
-        viewX = anchorClientX - areaRect.left;
-        viewY = anchorClientY - areaRect.top;
-        contentX = anchorClientX - wrapRect.left;
-        contentY = anchorClientY - wrapRect.top;
+    // Pre-zoom: capture the position of the cursor in CHART CANVAS coords
+    // (not wrap coords). The wrapper includes the grid-wrapper padding and
+    // the label rails, neither of which scale with zoom — only the chart
+    // canvas itself does. Scaling wrap-rel coords by the zoom ratio
+    // overshoots by ~labelOffset × (ratio − 1), which compounds across
+    // multiple zoom steps and produced the cursor-region oscillation.
+    let chartX = null, chartY = null, oldCellPx = 22;
+    if (canvasArea && baseCanvas && anchorClientX != null) {
+        const canvasRect = baseCanvas.getBoundingClientRect();
+        chartX = anchorClientX - canvasRect.left;
+        chartY = anchorClientY - canvasRect.top;
+        oldCellPx = (typeof GridView !== 'undefined' && GridView.getCellSize)
+            ? GridView.getCellSize() : (22 * oldZoom);
     }
 
     state.zoom = newZoom;
@@ -1022,24 +1041,31 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
     if (typeof renderSelectionOverlay === 'function') renderSelectionOverlay();
 
-    // Pull-to-centre: after the wrapper resizes by (newZoom/oldZoom), scroll
-    // so the content the user was hovering is at the viewport CENTRE (not
-    // pinned at the cursor). Zooming in then "magnifies the cursor region
-    // into the middle of the pane" rather than letting it drift toward a
-    // corner. Falls back to cursor-anchor when no anchor was supplied.
-    if (canvasArea && gridWrapper && contentX != null) {
-        const ratio = newZoom / oldZoom;
-        const targetContentX = contentX * ratio;
-        const targetContentY = contentY * ratio;
-        const newWrapRect = gridWrapper.getBoundingClientRect();
+    // Pull-to-centre: scroll so the chart cell that was under the cursor
+    // ends up at the viewport CENTRE. Scale by the CHART-WIDTH ratio, not
+    // the cell-pixel ratio — the cell position formula
+    //   col*(cellPx+1) + cellPx/2
+    // has a constant per-cell gap that doesn't scale with cellPx, so
+    // cellPx-ratio scaling produces ~100px error at 1000-col scale (the
+    // user's "region oscillating between corners" symptom).
+    if (canvasArea && baseCanvas && chartX != null) {
+        const newCanvasRect = baseCanvas.getBoundingClientRect();
         const newAreaRect = canvasArea.getBoundingClientRect();
-        // Where in client-coords we want targetContent to land.
+        const newCellPx = (typeof GridView !== 'undefined' && GridView.getCellSize)
+            ? GridView.getCellSize() : (22 * newZoom);
+        const cols = state.cols || 1, rows = state.rows || 1;
+        const oldChartW = cols * (oldCellPx + 1) - 1;
+        const newChartW = cols * (newCellPx + 1) - 1;
+        const oldChartH = rows * (oldCellPx + 1) - 1;
+        const newChartH = rows * (newCellPx + 1) - 1;
+        const ratioX = oldChartW > 0 ? newChartW / oldChartW : 1;
+        const ratioY = oldChartH > 0 ? newChartH / oldChartH : 1;
+        const cellNowX = newCanvasRect.left + chartX * ratioX;
+        const cellNowY = newCanvasRect.top + chartY * ratioY;
         const targetClientX = newAreaRect.left + newAreaRect.width / 2;
         const targetClientY = newAreaRect.top + newAreaRect.height / 2;
-        const currentContentX = targetClientX - newWrapRect.left;
-        const currentContentY = targetClientY - newWrapRect.top;
-        canvasArea.scrollLeft += targetContentX - currentContentX;
-        canvasArea.scrollTop  += targetContentY - currentContentY;
+        canvasArea.scrollLeft += cellNowX - targetClientX;
+        canvasArea.scrollTop  += cellNowY - targetClientY;
     }
 
     updateZoomIndicator();
