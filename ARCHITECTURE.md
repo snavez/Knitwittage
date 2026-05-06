@@ -145,8 +145,14 @@ The "everything else" module. Contains:
   `clearSelection`, `normalizeSelection`, `deleteSelection`. Copy / cut
   arm the ghost immediately (Ctrl+C is the user's "I want to place this"
   gesture); Ctrl+V commits at the current ghost position if armed,
-  otherwise re-arms. `renderPasteGhost` includes cells with stitches but
-  no colour by tinting them so the ghost footprint is always visible.
+  otherwise re-arms. `commitPaste` does NOT cancel after pasting — the
+  ghost stays armed for **multi-paste** (each successive left-click drops
+  another copy). Right-click on the grid OR Esc dismisses. The mousedown
+  handler ignores non-left buttons in paste mode so right-click reaches
+  the contextmenu listener cleanly; otherwise it would commit-and-erase
+  (mousedown commits, then contextmenu erases the cell). `renderPasteGhost`
+  includes cells with stitches but no colour by tinting them so the ghost
+  footprint is always visible.
 - Pattern-region helpers: `getPatternBounds`, `getPatternRegion`,
   `getStitchRegion`, `getStitchesUsedInGrid`, `getEffectiveActiveStitches`.
 - Status bar / save indicator / colour palette setup.

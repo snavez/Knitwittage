@@ -433,6 +433,12 @@ function bindEvents() {
 
         if (state.activeTool === 'select') {
             if (state.isPasting) {
+                // Left-click commits and STAYS armed so successive clicks
+                // multi-paste. Non-left buttons are handled by the contextmenu
+                // listener (right-click dismisses the ghost) — letting them
+                // through here would also commit, which is the bug the user
+                // saw as "right-click removes the colour".
+                if (e.button !== 0) return;
                 commitPaste(r, c);
                 return;
             }
@@ -523,9 +529,14 @@ function bindEvents() {
         }
     });
 
-    // Right-click to erase
+    // Right-click: cancel paste-ghost mode if armed (no commit, no erase),
+    // otherwise erase the right-clicked cell's colour. The "no commit" half
+    // matters because mousedown fires before contextmenu — without the
+    // mousedown guard above, right-click would commit AND erase, dropping a
+    // visible hole into the just-pasted block.
     container.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        if (state.isPasting) { cancelPaste(); return; }
         const hit = GridView.cellAt(e.clientX, e.clientY);
         if (!hit) return;
         state.grid[hit.r][hit.c] = null;
@@ -1389,7 +1400,7 @@ function copySelection() {
     // — selecting a colour and then pressing Ctrl+C is the user's "I want to
     // place this somewhere" gesture; making them press Ctrl+V too is friction.
     armPasteGhost(sel);
-    showToast('Copied — click to place, Esc to cancel');
+    showToast('Copied — click to place (multi-paste), right-click or Esc to cancel');
 }
 
 function cutSelection() {
@@ -1422,7 +1433,7 @@ function cutSelection() {
     renderGrid();
     pushHistory();
     armPasteGhost(sel);
-    showToast('Cut — click to place, Esc to cancel');
+    showToast('Cut — click to place (multi-paste), right-click or Esc to cancel');
 }
 
 // Ctrl+V (or Paste button) entry point. Two cases:
@@ -1441,7 +1452,7 @@ function pasteClipboard() {
         return;
     }
     armPasteGhost(normalizeSelection());
-    showToast('Move and click to place · Esc to cancel');
+    showToast('Click to place (multi-paste) · right-click or Esc to cancel');
 }
 
 // Enter paste-ghost mode. Pre-positions the ghost at `seed.minR/minC` if a
@@ -1517,9 +1528,12 @@ function commitPaste(row, col) {
             }
         }
     }
-    cancelPaste();
     renderGrid();
     pushHistory();
+    // Stay armed for multi-paste: the ghost remains so successive clicks
+    // (or Ctrl+V presses) keep dropping copies. Right-click or Esc dismisses.
+    // Re-render the ghost on top of the freshly-pasted content.
+    renderPasteGhost();
     // No toast — the pasted region appears immediately; the visual change is
     // its own confirmation.
 }
