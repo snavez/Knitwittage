@@ -113,36 +113,6 @@ boundaries for this.
 
 ## Bigger features
 
-### 15. Lift max grid size to 1000×1000 + perf-test
-
-Current cap is around 300. Lifting to 1000×1000 needs a stress-test pass before shipping
-— at 1M cells you start hitting performance walls everywhere. Profile first to find the
-biggest-O offenders, then optimise:
-
-- Canvas rendering (`GridView.redrawCell`, full grid redraw on resize).
-- Mousemove hit-tests during painting.
-- Undo history snapshot size — `pushHistory` clones the whole grid; at 1000×1000 each
-  snapshot is ~4MB, and we keep 50.
-- Instructions encoder (currently iterates every cell).
-- IndexedDB save/load for large patterns.
-
-Worth a feature flag during the rollout so the cap can be tested on real hardware before
-committing.
-
-### 16. Improve copy-paste
-
-Current flow is fiddly. Audit the full UX:
-
-- Selecting a region (click-drag, modifier keys, deselect).
-- Copy/cut affordances and discoverability.
-- Ghost preview during paste — when does it appear, where does it follow the cursor.
-- Where the paste *anchors* (top-left of selection, cursor position, etc.).
-- Keyboard shortcuts (Ctrl+C/X/V, Esc to cancel, Enter to commit).
-- Multi-paste (does paste stay armed for repeat use?).
-
-Identify friction points first, then propose UX changes — probably a clearer ghost +
-"click anywhere to commit, Esc to cancel" rule + better feedback toasts.
-
 ### 17. Row & column insert / delete
 
 Right-click on a row number, column number, or cell to insert or delete a row/column

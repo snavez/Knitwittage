@@ -90,7 +90,7 @@ subset of these fields; see [§5](#5-key-data-shapes).
 | `isPainting` | bool | app.js | Mouse-down paint loop guard. |
 | `paintStartCell`, `paintDragged` | object/bool | app.js | Drag-vs-click detection for paint. |
 | `zoom` | number | app.js | Chart zoom factor (1.0 = default). Set via `setZoom()`. |
-| `history`, `historyIndex`, `maxHistory` | array, num, num | app.js | Undo/redo. Each entry is a deep clone of `grid` + `stitchGrid`. |
+| `history`, `historyIndex`, `maxHistory` | array, num, num | app.js | Undo/redo. Each entry is a deep clone of `grid` + `stitchGrid`. The hard cap is `maxHistory` (default 50) but `effectiveMaxHistory()` scales it down for large grids — at 1000×1000 a full 50-snapshot history would burn ~800MB, so the effective cap targets ~50MB total memory (≈5 snapshots at 1000×1000, ≈12 at 500×500). |
 | `patternName` | string | app.js | Saved-pattern name. |
 | `knittingMode` | `'flat'|'round'` | app.js, knit-mode.js | Affects row direction in instructions. |
 | `firstRow` | `'RS'|'WS'` | app.js | Which side row 1 is on (flat only). |

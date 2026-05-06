@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=127">
+    <link rel="stylesheet" href="css/style.css?v=128">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -204,12 +204,12 @@
                 <div class="dimensions-grid">
                     <div class="dimension-field">
                         <div class="dimension-label">Height</div>
-                        <input type="number" id="grid-rows" min="2" max="300" value="20" title="Height (rows)">
+                        <input type="number" id="grid-rows" min="2" max="1000" value="20" title="Height (rows)">
                         <div class="dimension-suffix">rows</div>
                     </div>
                     <div class="dimension-field">
                         <div class="dimension-label">Width</div>
-                        <input type="number" id="grid-cols" min="2" max="300" value="20" title="Width (stitches)">
+                        <input type="number" id="grid-cols" min="2" max="1000" value="20" title="Width (stitches)">
                         <div class="dimension-suffix">sts</div>
                     </div>
                 </div>
@@ -356,11 +356,11 @@
                 <div id="image-controls" style="display:none;">
                     <div class="form-row">
                         <label for="image-rows">Rows:</label>
-                        <input type="number" id="image-rows" min="4" max="300" value="20">
+                        <input type="number" id="image-rows" min="4" max="1000" value="20">
                     </div>
                     <div class="form-row">
                         <label for="image-cols">Columns:</label>
-                        <input type="number" id="image-cols" min="4" max="300" value="20">
+                        <input type="number" id="image-cols" min="4" max="1000" value="20">
                     </div>
                     <div class="form-row">
                         <label>Lock ratio:</label>
@@ -409,11 +409,11 @@
             <div class="modal-body">
                 <div class="form-row">
                     <label for="random-rows">Rows:</label>
-                    <input type="number" id="random-rows" min="2" max="300" value="12">
+                    <input type="number" id="random-rows" min="2" max="1000" value="12">
                 </div>
                 <div class="form-row">
                     <label for="random-cols">Columns:</label>
-                    <input type="number" id="random-cols" min="2" max="300" value="12">
+                    <input type="number" id="random-cols" min="2" max="1000" value="12">
                 </div>
                 <div class="form-row">
                     <label for="random-mirror">Mirror:</label>
@@ -608,19 +608,19 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-view.js?v=127"></script>
-    <script src="js/app.js?v=127"></script>
-    <script src="js/preview.js?v=127"></script>
-    <script src="js/print.js?v=127"></script>
-    <script src="js/instructions.js?v=127"></script>
-    <script src="js/random.js?v=127"></script>
-    <script src="js/image.js?v=127"></script>
-    <script src="js/stitches.js?v=127"></script>
-    <script src="js/stitch-editor.js?v=127"></script>
-    <script src="js/gallery.js?v=127"></script>
-    <script src="js/cables.js?v=127"></script>
-    <script src="js/knit-mode.js?v=127"></script>
-    <script src="js/tabs.js?v=127"></script>
+    <script src="js/grid-view.js?v=128"></script>
+    <script src="js/app.js?v=128"></script>
+    <script src="js/preview.js?v=128"></script>
+    <script src="js/print.js?v=128"></script>
+    <script src="js/instructions.js?v=128"></script>
+    <script src="js/random.js?v=128"></script>
+    <script src="js/image.js?v=128"></script>
+    <script src="js/stitches.js?v=128"></script>
+    <script src="js/stitch-editor.js?v=128"></script>
+    <script src="js/gallery.js?v=128"></script>
+    <script src="js/cables.js?v=128"></script>
+    <script src="js/knit-mode.js?v=128"></script>
+    <script src="js/tabs.js?v=128"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {

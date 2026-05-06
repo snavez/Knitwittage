@@ -98,16 +98,16 @@ function closeImageModal() {
 function onRowsChange() {
     if (!imageData || !document.getElementById('image-lock-ratio').checked) return;
     const aspect = imageData.naturalWidth / imageData.naturalHeight;
-    const rows = clamp(+document.getElementById('image-rows').value, 4, 300);
-    const cols = clamp(Math.round(rows * aspect), 4, 300);
+    const rows = clamp(+document.getElementById('image-rows').value, 4, 1000);
+    const cols = clamp(Math.round(rows * aspect), 4, 1000);
     document.getElementById('image-cols').value = cols;
 }
 
 function onColsChange() {
     if (!imageData || !document.getElementById('image-lock-ratio').checked) return;
     const aspect = imageData.naturalWidth / imageData.naturalHeight;
-    const cols = clamp(+document.getElementById('image-cols').value, 4, 300);
-    const rows = clamp(Math.round(cols / aspect), 4, 300);
+    const cols = clamp(+document.getElementById('image-cols').value, 4, 1000);
+    const rows = clamp(Math.round(cols / aspect), 4, 1000);
     document.getElementById('image-rows').value = rows;
 }
 
@@ -122,8 +122,8 @@ function handleImageFile(file) {
             const aspect = img.naturalWidth / img.naturalHeight;
             let rows = 30;
             let cols = Math.round(rows * aspect);
-            rows = clamp(rows, 4, 300);
-            cols = clamp(cols, 4, 300);
+            rows = clamp(rows, 4, 1000);
+            cols = clamp(cols, 4, 1000);
             document.getElementById('image-rows').value = rows;
             document.getElementById('image-cols').value = cols;
 
@@ -154,8 +154,8 @@ function renderOriginalPreview(img) {
 function processImage() {
     if (!imageData) return;
 
-    const rows = clamp(+document.getElementById('image-rows').value, 4, 300);
-    const cols = clamp(+document.getElementById('image-cols').value, 4, 300);
+    const rows = clamp(+document.getElementById('image-rows').value, 4, 1000);
+    const cols = clamp(+document.getElementById('image-cols').value, 4, 1000);
     const maxColors = +document.getElementById('image-max-colors').value;
     const palette = getImagePickedColors().map(hex => ({ hex, rgb: hexToRGBArr(hex) }));
 

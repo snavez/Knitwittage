@@ -611,8 +611,8 @@ function bindEvents() {
 
     // Toolbar buttons
     document.getElementById('btn-resize').addEventListener('click', () => {
-        const rows = clamp(+document.getElementById('grid-rows').value, 2, 300);
-        const cols = clamp(+document.getElementById('grid-cols').value, 2, 300);
+        const rows = clamp(+document.getElementById('grid-rows').value, 2, 1000);
+        const cols = clamp(+document.getElementById('grid-cols').value, 2, 1000);
         document.getElementById('grid-rows').value = rows;
         document.getElementById('grid-cols').value = cols;
         // Knit mode caches per-row instructions for the CURRENT grid geometry;
@@ -737,13 +737,23 @@ function deepCopyStitchGrid(sg) {
     ));
 }
 
+// Adapt the undo cap to grid size. At 1000×1000 with 50 snapshots we'd burn
+// ~800MB of memory just for history; targeting ~50MB total instead by scaling
+// the cap down for big grids. A 200×200 chart still gets the full 50 levels;
+// big-pattern users get fewer levels in exchange for the app actually running.
+function effectiveMaxHistory() {
+    const cells = (state.rows || 1) * (state.cols || 1);
+    return Math.max(5, Math.min(state.maxHistory, Math.floor(3_000_000 / cells)));
+}
+
 function pushHistory() {
     const snapshot = state.grid.map(row => [...row]);
     const stitchSnapshot = deepCopyStitchGrid(state.stitchGrid);
     // Remove any future states after current index
     state.history = state.history.slice(0, state.historyIndex + 1);
     state.history.push({ grid: snapshot, stitchGrid: stitchSnapshot, rows: state.rows, cols: state.cols });
-    if (state.history.length > state.maxHistory) {
+    const cap = effectiveMaxHistory();
+    while (state.history.length > cap) {
         state.history.shift();
     }
     state.historyIndex = state.history.length - 1;
