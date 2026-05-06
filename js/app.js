@@ -1385,13 +1385,32 @@ function copySelection() {
         state.clipboard.push(colorRow);
         state.clipboardStitches.push(stitchRow);
     }
-    showToast('Copied');
+    // Arm the ghost immediately so the cursor shows where the paste will land
+    // — selecting a colour and then pressing Ctrl+C is the user's "I want to
+    // place this somewhere" gesture; making them press Ctrl+V too is friction.
+    armPasteGhost(sel);
+    showToast('Copied — click to place, Esc to cancel');
 }
 
 function cutSelection() {
-    copySelection();
     const sel = normalizeSelection();
     if (!sel) return;
+    // Capture the clipboard FIRST (without arming the ghost — we'll do that
+    // ourselves below, after clearing the source region).
+    state.clipboard = [];
+    state.clipboardStitches = [];
+    for (let r = sel.minR; r <= sel.maxR; r++) {
+        const colorRow = [];
+        const stitchRow = [];
+        for (let c = sel.minC; c <= sel.maxC; c++) {
+            colorRow.push(state.grid[r][c]);
+            const s = state.stitchGrid[r] ? state.stitchGrid[r][c] : null;
+            stitchRow.push(s === null || typeof s === 'string' ? s : { ...s });
+        }
+        state.clipboard.push(colorRow);
+        state.clipboardStitches.push(stitchRow);
+    }
+    // Clear the source region.
     for (let r = sel.minR; r <= sel.maxR; r++) {
         for (let c = sel.minC; c <= sel.maxC; c++) {
             state.grid[r][c] = null;
@@ -1402,25 +1421,39 @@ function cutSelection() {
     clearSelection();
     renderGrid();
     pushHistory();
-    showToast('Cut');
+    armPasteGhost(sel);
+    showToast('Cut — click to place, Esc to cancel');
 }
 
+// Ctrl+V (or Paste button) entry point. Two cases:
+//   - Ghost is already armed (e.g. user just hit Ctrl+C and is hovering over
+//     the chart): commit at the current ghost position.
+//   - Ghost is NOT armed (e.g. user copied earlier, did other work, then
+//     reached for Ctrl+V): arm it so the next click commits.
 function pasteClipboard() {
     if (!state.clipboard) {
         showToast('Nothing to paste');
         return;
     }
-    // Always enter ghost mode — a faint preview of the clipboard follows the
-    // cursor, click to commit at that position. Pre-position at the current
-    // selection's top-left if one exists so the starting point is sensible.
-    // The select tool must be active for mouse events to reach the paste logic.
-    const sel = normalizeSelection();
+    if (state.isPasting && state.pasteGhostPos) {
+        const { row, col } = state.pasteGhostPos;
+        commitPaste(row, col);
+        return;
+    }
+    armPasteGhost(normalizeSelection());
+    showToast('Move and click to place · Esc to cancel');
+}
+
+// Enter paste-ghost mode. Pre-positions the ghost at `seed.minR/minC` if a
+// selection-shaped seed is supplied so something visible appears before the
+// user moves the mouse — otherwise the ghost stays empty until first hover.
+function armPasteGhost(seed) {
+    if (!state.clipboard) return;
     state.activeTool = 'select';
     updateToolButtons();
     state.isPasting = true;
-    state.pasteGhostPos = sel ? { row: sel.minR, col: sel.minC } : { row: 0, col: 0 };
+    state.pasteGhostPos = seed ? { row: seed.minR, col: seed.minC } : null;
     renderPasteGhost();
-    showToast('Move and click to place · Esc to cancel');
 }
 
 function renderPasteGhost() {
@@ -1437,8 +1470,15 @@ function renderPasteGhost() {
             const r = startR + dr, c = startC + dc;
             if (r < 0 || r >= state.rows || c < 0 || c >= state.cols) continue;
             const color = state.clipboard[dr][dc];
-            if (color === null) continue;
-            cells.push({ r, c, color });
+            const stitch = state.clipboardStitches && state.clipboardStitches[dr]
+                ? state.clipboardStitches[dr][dc] : null;
+            // Skip cells that have neither a colour nor a stitch — they'd
+            // paste as blank and don't need to appear in the ghost footprint.
+            if (color === null && (stitch === null || stitch === undefined)) continue;
+            // Use the cell's colour if it has one; otherwise a faint ink tint
+            // so stitch-only cells still appear in the ghost. Without this,
+            // copying a stitches-only region produced an invisible ghost.
+            cells.push({ r, c, color: color || 'rgba(42,33,26,0.22)' });
         }
     }
     GridView.setPasteGhost(cells);

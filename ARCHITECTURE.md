@@ -141,7 +141,12 @@ The "everything else" module. Contains:
 - Zoom: `setZoom`, wheel/keyboard zoom anchoring.
 - File: `saveToFile`, `loadFromFile`, `handleFileLoad`, `restorePatternData`.
 - Selection / copy-paste: `copySelection`, `cutSelection`, `pasteClipboard`,
-  `cancelPaste`, `clearSelection`, `normalizeSelection`, `deleteSelection`.
+  `armPasteGhost`, `renderPasteGhost`, `commitPaste`, `cancelPaste`,
+  `clearSelection`, `normalizeSelection`, `deleteSelection`. Copy / cut
+  arm the ghost immediately (Ctrl+C is the user's "I want to place this"
+  gesture); Ctrl+V commits at the current ghost position if armed,
+  otherwise re-arms. `renderPasteGhost` includes cells with stitches but
+  no colour by tinting them so the ghost footprint is always visible.
 - Pattern-region helpers: `getPatternBounds`, `getPatternRegion`,
   `getStitchRegion`, `getStitchesUsedInGrid`, `getEffectiveActiveStitches`.
 - Status bar / save indicator / colour palette setup.
