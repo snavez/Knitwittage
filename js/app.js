@@ -1053,28 +1053,31 @@ function bindZoom() {
     });
 
     // Ctrl (or Cmd) + wheel = zoom; pass wheel through for scroll otherwise.
-    // Coalesce rapid wheel events into one zoom per animation frame — at
-    // 1000×1000 each canvas resize allocates ~80MB of GPU memory, and
-    // doing that per wheel tick can starve the browser's GPU context
-    // (symptom: the whole window blanks and recovers in a degraded state).
+    // Hard throttle to ~10 zooms / second. At 1000×1000 each canvas resize
+    // allocates ~80MB of GPU memory; the previous rAF-only coalescing still
+    // allowed up to 60 resizes/second, which exhausts the GPU context and
+    // blanks the browser. Wheel events between flushes accumulate and
+    // collapse into a single setZoom call with the combined factor — the
+    // user gets responsive zoom WITHOUT the canvas-resize storm.
+    const ZOOM_THROTTLE_MS = 100;
     let wheelAccum = 0;
     let wheelAnchorX = 0, wheelAnchorY = 0;
-    let wheelFrame = null;
+    let pendingZoomTimer = null;
     canvasArea.addEventListener('wheel', (e) => {
         if (!(e.ctrlKey || e.metaKey)) return;
         e.preventDefault();
         wheelAccum += (e.deltaY < 0 ? 1 : -1);
         wheelAnchorX = e.clientX;
         wheelAnchorY = e.clientY;
-        if (wheelFrame) return;
-        wheelFrame = requestAnimationFrame(() => {
-            wheelFrame = null;
+        if (pendingZoomTimer) return;
+        pendingZoomTimer = setTimeout(() => {
+            pendingZoomTimer = null;
             const steps = wheelAccum;
             wheelAccum = 0;
             if (steps === 0) return;
             const factor = Math.pow(steps > 0 ? ZOOM_STEP : 1 / ZOOM_STEP, Math.abs(steps));
             setZoom(state.zoom * factor, wheelAnchorX, wheelAnchorY);
-        });
+        }, ZOOM_THROTTLE_MS);
     }, { passive: false });
 
     // Pick the anchor for keyboard / pill-click zoom: cursor if we have

@@ -680,8 +680,10 @@ body.knit-active .workbench {
     z-index: 5;
     background: #fff;
 }
-.row-numbers-left { left: 0; }
-.row-numbers-right { right: 0; }
+/* Negative offsets reach past the .canvas-area's 28px×24px padding so the
+   rails sit flush with the pane's BOX edge, not the padded content edge. */
+.row-numbers-left { left: -24px; }
+.row-numbers-right { right: -24px; }
 
 .row-number {
     height: var(--cell-size);
@@ -737,12 +739,12 @@ body.knit-active .workbench {
 
 .col-numbers-top {
     margin-bottom: 4px;
-    top: 0;
+    top: -28px;
 }
 
 .col-numbers-bottom {
     margin-top: 4px;
-    bottom: 0;
+    bottom: -28px;
 }
 
 .col-number {
