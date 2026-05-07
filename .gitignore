@@ -1,0 +1,15 @@
+# Test scaffolding installs Vitest into node_modules — kept local, not in
+# version control. Run `npm install` after cloning to set up the test runner.
+node_modules/
+
+# npm's lockfile — keeping it lets others install identical versions, but
+# also produces large diffs on every dependency bump. Tracked.
+# (Leave package-lock.json untracked? No — keep it for reproducibility.)
+
+# Local Claude/Atelier tooling state — was already untracked all session.
+.atelier-design/
+.claude/
+
+# Test artefacts the user has been generating manually
+test_print*.pdf
+testPatternSts*.json

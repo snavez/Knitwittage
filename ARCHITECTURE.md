@@ -33,6 +33,7 @@ earlier one. Confirmed safe ordering, with rationale:
 
 | # | File | Owns |
 |---|------|------|
+| 0 | [js/grid-math.js](js/grid-math.js) | Pure-math helpers (labelStride, maxZoom, history cap, pull-to-centre scroll) — also imported by the test suite |
 | 1 | [js/grid-view.js](js/grid-view.js) | `GridView` IIFE — canvas-backed chart renderer |
 | 2 | [js/app.js](js/app.js) | `state`, app init, palette init, tools, history, file save/load, zoom, status bar, copy/paste, keyboard shortcuts |
 | 3 | [js/preview.js](js/preview.js) | Pattern preview modal (`renderPreview`, `openPreview`, `closePreview`) |
@@ -644,6 +645,81 @@ to the nearest scrolling ancestor — currently `.canvas-area`. If you
 restructure the workbench DOM so a different ancestor handles scroll,
 the labels stop pinning. White opaque background + z-index keeps the
 labels above the canvas they overlap when scrolled.
+
+### 7.13 Stride values for label rails must be ODD
+
+`labelStride()` returns 1, 3, 5, 9, 15, 25, … — never 2, 4, 10. Even
+strides label only one parity of rows (e.g. stride 10 → rows 10, 20, 30
+all even), and in flat-RS knitting mode odd rows go to the right rail
+while even go to the left. Stride 10 leaves the right rail blank
+except for the forced row-1 anchor. The pure-math helper enforces this;
+don't bypass it from the rendering layer.
+
+---
+
+## 8. Testing
+
+There's a small unit-test suite for the pure-math helpers — the bits we
+keep finding regressions in (zoom anchor math, label stride parity, the
+adaptive history cap, canvas-size limit). Run with:
+
+```
+npm install   # once
+npm test      # runs vitest
+```
+
+The test runner is **Vitest** (Node-based, no browser, no headless DOM
+needed for these helpers). Tests live in [tests/grid-math.test.js](tests/grid-math.test.js)
+and target [js/grid-math.js](js/grid-math.js) — the pure module that
+contains every grid-math helper that has no DOM dependencies.
+
+### What's tested
+
+- `labelStride` — including the **odd-only invariant** (§7.13) for every
+  combination of cellPx and totalCells we care about.
+- `maxZoomForGridSize` — canvas-size cap holds at 1000×1000; small grids
+  reach high zoom; symmetric in rows/cols.
+- `effectiveMaxHistoryFor` — small grids get full base cap, 500×500 gets
+  ~12, 1000×1000 hits the floor of 5, custom params honoured.
+- `computePullToCentreScroll` — single zoom step centres the cell;
+  repeated steps converge without oscillation (this is the test that
+  would have caught the recent bug where the cursor region swapped
+  between corners).
+- `normalizeSelectionRect`, `clipPasteToGrid` — basic boundary cases.
+
+### When to add a test
+
+Add a test whenever:
+- You're fixing a math bug in any grid helper. Capture the buggy input as
+  a regression test before you change the code.
+- You're adding a new pure helper to `grid-math.js`. The barrier to entry
+  for the file is "this works in pure JS without `state` or DOM"; the
+  reward is automatic test coverage.
+
+### What's NOT tested (yet)
+
+- The DOM-touching parts: `renderNumbers`, `setZoom` (the wrapper),
+  the mousedown/wheel handlers, the GridView canvas painter. These need
+  jsdom + integration tests, which we haven't set up. Worth doing if
+  bugs keep slipping through. Recommended path: Playwright for full
+  flows (paint → undo → zoom → paste).
+- Any helper still living in `app.js` that reads `state` directly. To
+  test these, refactor them to take parameters and move to
+  `grid-math.js` (or a sibling pure module). Don't add `state` mocks —
+  refactor instead.
+
+### Module layout for the curious
+
+`js/grid-math.js` is a hybrid module:
+- In the browser, it's loaded as a classic `<script>` and defines globals
+  (`labelStride`, `maxZoomForGridSize`, …).
+- In Vitest, the file's CJS shim at the bottom (`module.exports = …`)
+  exposes the same names. Tests import via `createRequire` from an ESM
+  test file.
+
+If you need to add another hybrid module, follow the same shape. Don't
+convert the browser side to ESM modules — most of the codebase relies
+on classic-script globals and the conversion would be invasive.
 
 ---
 

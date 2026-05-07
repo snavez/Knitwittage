@@ -232,30 +232,9 @@ function renderGrid() {
 
 // When cells shrink under zoom, row/col labels overlap — show only every Nth.
 // Always keep the first row/col and the last knitting row/col visible.
-// Label stride accounts for both cell size AND digit count: a 3-digit label
-// (e.g. "857") is roughly 3 × monospace digit width + breathing room ≈ 27px,
-// so even at cellPx = 14 we need to skip every other label to prevent
-// overlap. `totalCells` is the count along whichever axis we're labelling so
-// the digit count is correct (1000 → 4 digits, 20 → 2).
-//
-// Strides are always ODD (1, 3, 5, 9, 15, 25, …). Even strides break the
-// flat-mode rail split: with stride = 10, the labelled rows are 10, 20, 30,
-// … — all EVEN, which means in flat-RS mode the right rail (odd rows) shows
-// nothing except the forced row 1. Using odd strides guarantees both
-// parities get labelled and both rails populate.
-function labelStride(cellPx, totalCells) {
-    const digits = String(totalCells || 1).length;
-    const labelWidth = digits * 7 + 6;
-    if (cellPx >= labelWidth)        return 1;
-    if (cellPx * 3 >= labelWidth)    return 3;
-    if (cellPx * 5 >= labelWidth)    return 5;
-    if (cellPx * 9 >= labelWidth)    return 9;
-    if (cellPx * 15 >= labelWidth)   return 15;
-    if (cellPx * 25 >= labelWidth)   return 25;
-    let s = Math.max(1, Math.ceil(labelWidth / cellPx));
-    if (s % 2 === 0) s += 1;
-    return s;
-}
+// labelStride is defined in js/grid-math.js (pure-math module) — same name,
+// loaded as a global by the script tag in index.html before app.js. Kept
+// there so it can be unit-tested without DOM dependencies.
 
 function renderNumbers() {
     const leftNums = document.getElementById('row-numbers-left');
@@ -777,13 +756,12 @@ function deepCopyStitchGrid(sg) {
     ));
 }
 
-// Adapt the undo cap to grid size. At 1000×1000 with 50 snapshots we'd burn
-// ~800MB of memory just for history; targeting ~50MB total instead by scaling
-// the cap down for big grids. A 200×200 chart still gets the full 50 levels;
-// big-pattern users get fewer levels in exchange for the app actually running.
+// Adapt the undo cap to grid size. The pure-math version is in
+// js/grid-math.js as effectiveMaxHistoryFor(rows, cols, opts) — kept
+// separate so it can be unit-tested without state. This wrapper plugs in
+// the current state values.
 function effectiveMaxHistory() {
-    const cells = (state.rows || 1) * (state.cols || 1);
-    return Math.max(5, Math.min(state.maxHistory, Math.floor(3_000_000 / cells)));
+    return effectiveMaxHistoryFor(state.rows, state.cols, { baseCap: state.maxHistory });
 }
 
 function pushHistory() {
@@ -1005,13 +983,11 @@ const ZOOM_STEP = 1.15;
 // the symptom is a white-out at the zoom level that pushes total chart width
 // past the limit. Cap the effective zoom dynamically based on grid size so we
 // never produce a canvas that big.
-const MAX_CANVAS_PX = 16000;
-
+// Pure-math helper lives in js/grid-math.js as maxZoomForGridSize().
+// This wrapper plugs in the current state and clamps to the app's
+// ZOOM_MIN/MAX; tests exercise the pure version directly.
 function maxZoomForCurrentGrid() {
-    const N = Math.max(state.rows || 1, state.cols || 1);
-    if (N <= 1) return ZOOM_MAX;
-    // step ≈ round(22 * zoom) + 1 (gap). Solve N * step ≤ MAX_CANVAS_PX.
-    const z = (MAX_CANVAS_PX / N - 1) / 22;
+    const z = maxZoomForGridSize(state.rows, state.cols);
     return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
 }
 
@@ -1051,31 +1027,24 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
     if (typeof renderSelectionOverlay === 'function') renderSelectionOverlay();
 
-    // Pull-to-centre: scroll so the chart cell that was under the cursor
-    // ends up at the viewport CENTRE. Scale by the CHART-WIDTH ratio, not
-    // the cell-pixel ratio — the cell position formula
-    //   col*(cellPx+1) + cellPx/2
-    // has a constant per-cell gap that doesn't scale with cellPx, so
-    // cellPx-ratio scaling produces ~100px error at 1000-col scale (the
-    // user's "region oscillating between corners" symptom).
+    // Pull-to-centre: delegate scroll-delta math to grid-math.js's pure
+    // computePullToCentreScroll() — see that helper's comment for why we
+    // scale by chart-WIDTH ratio (not cellPx ratio).
     if (canvasArea && baseCanvas && chartX != null) {
         const newCanvasRect = baseCanvas.getBoundingClientRect();
         const newAreaRect = canvasArea.getBoundingClientRect();
         const newCellPx = (typeof GridView !== 'undefined' && GridView.getCellSize)
             ? GridView.getCellSize() : (22 * newZoom);
-        const cols = state.cols || 1, rows = state.rows || 1;
-        const oldChartW = cols * (oldCellPx + 1) - 1;
-        const newChartW = cols * (newCellPx + 1) - 1;
-        const oldChartH = rows * (oldCellPx + 1) - 1;
-        const newChartH = rows * (newCellPx + 1) - 1;
-        const ratioX = oldChartW > 0 ? newChartW / oldChartW : 1;
-        const ratioY = oldChartH > 0 ? newChartH / oldChartH : 1;
-        const cellNowX = newCanvasRect.left + chartX * ratioX;
-        const cellNowY = newCanvasRect.top + chartY * ratioY;
-        const targetClientX = newAreaRect.left + newAreaRect.width / 2;
-        const targetClientY = newAreaRect.top + newAreaRect.height / 2;
-        canvasArea.scrollLeft += cellNowX - targetClientX;
-        canvasArea.scrollTop  += cellNowY - targetClientY;
+        const { scrollDeltaX, scrollDeltaY } = computePullToCentreScroll({
+            chartX, chartY, oldCellPx, newCellPx,
+            cols: state.cols, rows: state.rows,
+            canvasLeftAfter: newCanvasRect.left,
+            canvasTopAfter: newCanvasRect.top,
+            viewportCentreX: newAreaRect.left + newAreaRect.width / 2,
+            viewportCentreY: newAreaRect.top + newAreaRect.height / 2,
+        });
+        canvasArea.scrollLeft += scrollDeltaX;
+        canvasArea.scrollTop  += scrollDeltaY;
     }
 
     updateZoomIndicator();
