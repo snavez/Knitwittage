@@ -1317,9 +1317,18 @@ body.knit-active .workbench {
 }
 
 .instructions-edit-hint {
+    font-family: var(--mono);
     font-size: 0.7rem;
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* Instructions tab buttons: match the workbench's serif button look so
+   they don't read as a different visual register from the rest of the
+   panel buttons. */
+#instructions-modal .modal-controls button {
+    font-family: var(--serif);
+    font-size: 0.82rem;
 }
 
 .instructions-edited {

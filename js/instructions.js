@@ -243,6 +243,26 @@ function formatInstructionsText(pattern, mode) {
     const r1IsWS = (state.firstRow === 'WS');
 
     const activeArrayRows = getActiveKnittingRows(pattern, stitchRegion);
+
+    // Cast-on preamble: count the stitches the knitter actually casts on,
+    // which is the count of cells in knitting row 1 (= the bottom of the
+    // chart = array row patRows-1) that aren't 'no-stitch'. This is a
+    // one-shot line — knitters cast on once at the very start and never
+    // again across pattern repeats.
+    if (activeArrayRows.length > 0) {
+        const r1Array = activeArrayRows[0];
+        const r1Stitch = stitchRegion ? stitchRegion[r1Array] : null;
+        let castOn;
+        if (r1Stitch) {
+            castOn = 0;
+            for (const s of r1Stitch) if (s !== 'no-stitch') castOn++;
+        } else {
+            castOn = patCols;
+        }
+        const noun = castOn === 1 ? 'stitch' : 'stitches';
+        text += `Cast on ${castOn} ${noun}.\n`;
+    }
+
     for (let i = 0; i < activeArrayRows.length; i++) {
         const knittingRow = i + 1;
         const arrayRow = activeArrayRows[i];
@@ -527,21 +547,32 @@ function buildCrossingNotation(stitch) {
     return `${stitch.width}-st ${dirLabel}`;
 }
 
+// Helper for #12: spell out a count + stitch as a human phrase
+// ("Knit 2", "Purl 3"). Used to prefix each cable definition with a
+// plain-English summary before the technical CN/LN instruction.
+function describeStitchPhrase(count, st) {
+    const verb = st === 'knit' ? 'Knit' : 'Purl';
+    return `${verb} ${count}`;
+}
+
 function buildCrossingDescription(stitch) {
     const clusters = stitch.clusters || [];
     const isLeft = stitch.dir === 'left';
+    const direction = isLeft ? 'Left cross' : 'Right cross';
+    const hold = isLeft ? 'front' : 'back';
 
     // Left Cross: slip LEFT group to CN, hold at FRONT → right group leans left in front
     // Right Cross: slip RIGHT group to CN, hold at BACK → left group leans right in front
 
     if (clusters.length === 0 || clusters.length === 1) {
-        // Pure cable
+        // Pure cable — both halves knit.
         const half = Math.floor(stitch.width / 2);
         const rem = stitch.width - half;
+        const summary = `Knit ${isLeft ? rem : half}, Knit ${isLeft ? half : rem} (${direction})`;
         if (isLeft) {
-            return `Sl ${half} sts to CN and hold at front, K${rem} from LN, K${half} from CN.`;
+            return `${summary}: Slip ${half} sts to cable needle and hold at ${hold}. Knit ${rem} from left needle, knit ${half} from cable needle.`;
         } else {
-            return `Sl ${rem} sts to CN and hold at back, K${half} from LN, K${rem} from CN.`;
+            return `${summary}: Slip ${rem} sts to cable needle and hold at ${hold}. Knit ${half} from left needle, knit ${rem} from cable needle.`;
         }
     }
 
@@ -550,14 +581,16 @@ function buildCrossingDescription(stitch) {
         const right = clusters[1];
         if (isLeft) {
             // LC: slip left group to CN front, work right group from LN, then left from CN
-            const workFirst = right.st === 'knit' ? `K${right.count}` : `P${right.count}`;
-            const workCN = left.st === 'knit' ? `K${left.count}` : `P${left.count}`;
-            return `Sl ${left.count} sts to CN and hold at front, ${workFirst} from LN, ${workCN} from CN.`;
+            const summary = `${describeStitchPhrase(right.count, right.st)}, ${describeStitchPhrase(left.count, left.st)} (${direction})`;
+            const workFirst = right.st === 'knit' ? `Knit ${right.count}` : `Purl ${right.count}`;
+            const workCN = left.st === 'knit' ? `knit ${left.count}` : `purl ${left.count}`;
+            return `${summary}: Slip ${left.count} sts to cable needle and hold at ${hold}. ${workFirst} from left needle, ${workCN} from cable needle.`;
         } else {
             // RC: slip right group to CN back, work left group from LN, then right from CN
-            const workFirst = left.st === 'knit' ? `K${left.count}` : `P${left.count}`;
-            const workCN = right.st === 'knit' ? `K${right.count}` : `P${right.count}`;
-            return `Sl ${right.count} sts to CN and hold at back, ${workFirst} from LN, ${workCN} from CN.`;
+            const summary = `${describeStitchPhrase(left.count, left.st)}, ${describeStitchPhrase(right.count, right.st)} (${direction})`;
+            const workFirst = left.st === 'knit' ? `Knit ${left.count}` : `Purl ${left.count}`;
+            const workCN = right.st === 'knit' ? `knit ${right.count}` : `purl ${right.count}`;
+            return `${summary}: Slip ${right.count} sts to cable needle and hold at ${hold}. ${workFirst} from left needle, ${workCN} from cable needle.`;
         }
     }
 
@@ -565,11 +598,14 @@ function buildCrossingDescription(stitch) {
         const left = clusters[0];
         const center = clusters[1];
         const right = clusters[2];
-        const centerWork = center.st === 'knit' ? `K${center.count}` : `P${center.count}`;
+        const summary = `${describeStitchPhrase(left.count, left.st)}, ${describeStitchPhrase(center.count, center.st)}, ${describeStitchPhrase(right.count, right.st)} (${direction})`;
+        const centerWork = center.st === 'knit' ? `knit ${center.count}` : `purl ${center.count}`;
+        const leftWork = left.st === 'knit' ? `knit ${left.count}` : `purl ${left.count}`;
+        const rightWork = right.st === 'knit' ? `knit ${right.count}` : `purl ${right.count}`;
         if (isLeft) {
-            return `Sl ${left.count + center.count} sts to CN and hold at front, ${right.st === 'knit' ? 'K' : 'P'}${right.count} from LN, sl last ${center.count} from CN back to LN and ${centerWork}, ${left.st === 'knit' ? 'K' : 'P'}${left.count} from CN.`;
+            return `${summary}: Slip ${left.count + center.count} sts to cable needle and hold at ${hold}. ${right.st === 'knit' ? 'Knit' : 'Purl'} ${right.count} from left needle, slip last ${center.count} from cable needle back to left needle and ${centerWork}, then ${leftWork} from cable needle.`;
         } else {
-            return `Sl ${right.count} sts to CN and hold at back, ${left.st === 'knit' ? 'K' : 'P'}${left.count} from LN, ${centerWork} from LN, ${right.st === 'knit' ? 'K' : 'P'}${right.count} from CN.`;
+            return `${summary}: Slip ${right.count} sts to cable needle and hold at ${hold}. ${left.st === 'knit' ? 'Knit' : 'Purl'} ${left.count} from left needle, ${centerWork} from left needle, then ${rightWork} from cable needle.`;
         }
     }
 

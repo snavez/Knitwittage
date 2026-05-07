@@ -48,32 +48,6 @@ Worth sketching wireframes before code.
 
 ## Instructions tab
 
-### 10. Typography tidy
-
-- Any buttons in the Instructions tab should use the workbench button font (`var(--serif)`, 0.82rem).
-- The "click text to edit" hint should use `var(--mono)`.
-
-### 11. Cast-on line at the top of Instructions
-
-Insert a `Cast on X stitches` line immediately after the "Instructions:" heading and
-before the `Row 1` line, in both the preview and printed output. `X` = total defined
-stitches in row 1, excluding any no-stitch cells. Updates live as row 1 is edited.
-
-**Important:** the cast-on line is a one-shot preamble, **not** part of the repeating
-pattern. If the bottom-bar / step-through view loops the pattern (final row back to
-row 1), the cast-on line must be shown once at the very start and skipped on every
-subsequent loop — knitters only cast on once.
-
-### 12. Expand cable instruction definitions
-
-These appear once at the top of the printed/preview instructions, so they should be
-explicit. Example:
-
-- **Current**: `P2/K2 RC: Sl 2 sts to CN and hold at back, P2 from LN, K2 from CN.`
-- **Wanted**: `P2/K2 RC: Purl 2, Knit 2 (Right cross): Slip 2 sts to cable needle and hold at back. P2 from left needle, K2 from cable needle.`
-
-Sweep all built-in cable codes in `js/instructions.js`.
-
 ### 13. Cable code rename
 
 Drop the slash format (`2/2 LC`) in favour of:
@@ -88,26 +62,22 @@ known, just need a new naming function. Then update the palette tile labels for
 `left-cross` / `right-cross` so they reflect the convention (e.g. "CF / TwL" and
 "CB / TwR" depending on context).
 
-### 14a. Treat a full row of "no stitch" as an end-of-piece marker
+### 14a. End-of-piece marker for full no-stitch rows (long-term)
 
-Right now a row that's entirely `no-stitch` is encoded just like any other row in
-the instructions (`Row 8 (WS): K20` etc.) when in reality it represents the chart
-saying "nothing here". Two-stage fix:
+The short-term bug fix shipped — `getActiveKnittingRows()` skips all-no-stitch
+rows from the row count so the instructions don't fabricate K/P stitches for
+chart placeholders.
 
-- **Short-term (bug fix)**: in `js/instructions.js`, detect rows where every cell
-  is `no-stitch` and emit them as a blank gap (`Row 8 (WS):` with no body, or skip
-  the row entirely) rather than fabricating stitches. Same logic for the chart
-  section heading in the printable instructions.
-- **Long-term (feature)**: a full no-stitch row separating two regions of stitches
-  should mean "cast off here, then cast on again for the next piece" — so a chart
-  with a 1-row gap between two panels generates two separate sets of instructions
-  with the appropriate cast-off / cast-on lines between them. Needs a small UX
-  decision around how the user signals "this is a deliberate end-of-piece break"
-  vs "I just left a row blank by accident".
+The long-term feature is still open: a full no-stitch row separating two regions
+of stitches should mean "cast off here, then cast on again for the next piece"
+— so a chart with a 1-row gap between two panels generates two separate sets
+of instructions with the appropriate cast-off / cast-on lines between them.
+Needs a small UX decision around how the user signals "this is a deliberate
+end-of-piece break" vs "I just left a row blank by accident".
 
-Pairs naturally with #11 (cast-on preamble) — the same plumbing that detects row
-1's stitch count for the cast-on line can detect mid-chart cast-off / cast-on
-boundaries for this.
+Now that #11 (cast-on preamble) has shipped, the cast-on line can be reused at
+each piece boundary; the cast-off side just needs a `Cast off N stitches` line
+in the same position.
 
 ---
 
