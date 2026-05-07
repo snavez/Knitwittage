@@ -34,6 +34,7 @@ earlier one. Confirmed safe ordering, with rationale:
 | # | File | Owns |
 |---|------|------|
 | 0 | [js/grid-math.js](js/grid-math.js) | Pure-math helpers (labelStride, maxZoom, history cap, pull-to-centre scroll) — also imported by the test suite |
+| 0b | [js/sizing-math.js](js/sizing-math.js) | Pure-math helpers for gauge → cell-count conversion (stitch-count calculator + future garment generator) |
 | 1 | [js/grid-view.js](js/grid-view.js) | `GridView` IIFE — canvas-backed chart renderer |
 | 2 | [js/app.js](js/app.js) | `state`, app init, palette init, tools, history, file save/load, zoom, status bar, copy/paste, keyboard shortcuts |
 | 3 | [js/preview.js](js/preview.js) | Pattern preview modal (`renderPreview`, `openPreview`, `closePreview`) |
@@ -47,6 +48,7 @@ earlier one. Confirmed safe ordering, with rationale:
 | 11 | [js/cables.js](js/cables.js) | Stitch palette tile rendering, click+drag cable/multi-cell placement, `wrapSetToolForStitchClear`, left-panel context menu |
 | 12 | [js/knit-mode.js](js/knit-mode.js) | "Knit mode" step-through overlay (`knitState`) |
 | 13 | [js/tabs.js](js/tabs.js) | Top tab strip (Design / Refine Instructions / Knit) |
+| 14 | [js/sizing.js](js/sizing.js) | Calculate Grid Size modal — gathers gauge + target-size inputs, calls sizing-math, persists last-used gauge to localStorage |
 
 **Why this ordering matters:**
 

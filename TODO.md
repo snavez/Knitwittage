@@ -162,32 +162,6 @@ Right-click on a row number, column number, or cell to insert or delete a row/co
 - If the row/column being pushed off the edge contains defined stitches, warn or
   confirm before committing — silent loss of work would be nasty.
 
-### 18. Stitch-count calculator under Dimensions
-
-A workflow most knitters need: "I want my finished piece to be X cm wide. How many
-stitches do I cast on?" Add a small calculator alongside the existing Height/Width
-fields in the Dimensions panel:
-
-**Inputs**
-- Target finished width (with cm/inches toggle).
-- Optional: target finished length (same units).
-- Gauge: stitches per swatch + rows per swatch (two number fields).
-- Swatch size dropdown — defaults to **10×10 cm** (the global standard, also written as
-  4×4 inches in US patterns). Some lace/colourwork patterns use 6×6 inches; offer it as
-  an option but keep 10×10 as the default.
-- Help text under the gauge fields: "From your yarn's ball band, or from your own
-  knitted gauge swatch."
-
-**Outputs**
-- Required stitch count (and row count if length given).
-- A one-shot **"Apply to grid"** button that resizes the chart to those dimensions.
-
-**Notes**
-- Round to nearest whole stitch; show the rounding error.
-- Save the last-used gauge in IndexedDB so users don't retype it for every project.
-- Watch out for unit conversion: 4 inches = 10.16 cm, not 10 cm. Decide whether to
-  treat them as identical (most patterns do) or strict.
-
 ### 19. Per-row stitch counter + inc/dec balance check
 
 Two related capabilities that share the same plumbing.
