@@ -237,14 +237,24 @@ function renderGrid() {
 // so even at cellPx = 14 we need to skip every other label to prevent
 // overlap. `totalCells` is the count along whichever axis we're labelling so
 // the digit count is correct (1000 → 4 digits, 20 → 2).
+//
+// Strides are always ODD (1, 3, 5, 9, 15, 25, …). Even strides break the
+// flat-mode rail split: with stride = 10, the labelled rows are 10, 20, 30,
+// … — all EVEN, which means in flat-RS mode the right rail (odd rows) shows
+// nothing except the forced row 1. Using odd strides guarantees both
+// parities get labelled and both rails populate.
 function labelStride(cellPx, totalCells) {
     const digits = String(totalCells || 1).length;
-    const labelWidth = digits * 7 + 6; // ~7px/digit mono + 6px padding
+    const labelWidth = digits * 7 + 6;
     if (cellPx >= labelWidth)        return 1;
-    if (cellPx >= labelWidth / 2)    return 2;
-    if (cellPx >= labelWidth / 5)    return 5;
-    if (cellPx >= labelWidth / 10)   return 10;
-    return Math.max(1, Math.ceil(labelWidth / cellPx));
+    if (cellPx * 3 >= labelWidth)    return 3;
+    if (cellPx * 5 >= labelWidth)    return 5;
+    if (cellPx * 9 >= labelWidth)    return 9;
+    if (cellPx * 15 >= labelWidth)   return 15;
+    if (cellPx * 25 >= labelWidth)   return 25;
+    let s = Math.max(1, Math.ceil(labelWidth / cellPx));
+    if (s % 2 === 0) s += 1;
+    return s;
 }
 
 function renderNumbers() {
