@@ -113,6 +113,26 @@ boundaries for this.
 
 ## Bigger features
 
+### 16b. Canvas tiling for big grids
+
+`GridView` paints a single `<canvas>` element. Browsers cap one canvas
+dimension at ~16 384px (Safari/iOS) and even where the dimension cap is
+higher (Chrome desktop = 32 767px), GPU memory becomes the bottleneck —
+at 22 000² that's ~1.94GB per canvas, which mid-range Windows GPUs
+white-out on. Currently `GRID_CANVAS_LIMIT_PX = 16000`, which means
+1000×1000 grids top out at ~0.68× zoom (cells ~15px) instead of the 1.0×
+cap that smaller grids reach.
+
+The fix: split the chart across a grid of smaller canvas tiles, each
+under the per-canvas limit. The `redrawAll` loop iterates tiles instead
+of one canvas; `cellAt(clientX, clientY)` translates through tile rect
+math. Trade-off: more bookkeeping, more state in `GridView`, but
+1000×1000 reaches 1.0× zoom cleanly and we lose the canvas-size cap as a
+fragile point (§7.10).
+
+When this lands, also bump `GRID_CANVAS_LIMIT_PX` (or remove it
+entirely) and update §7.10 of ARCHITECTURE.md.
+
 ### 17. Row & column insert / delete
 
 Right-click on a row number, column number, or cell to insert or delete a row/column
