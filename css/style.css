@@ -2175,15 +2175,18 @@ body.knit-active .workbench {
 }
 .st-re-option input[type=radio] { margin: 0; flex: 0 0 auto; }
 .st-re-n {
-    width: 44px;
-    padding: 2px 4px;
+    width: 32px;
+    padding: 1px 2px;
     font-family: var(--sans);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     border: 1px solid var(--border);
     border-radius: 3px;
     background: #fff;
     text-align: center;
+    -moz-appearance: textfield;
 }
+.st-re-n::-webkit-outer-spin-button,
+.st-re-n::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .st-re-n:disabled { opacity: 0.4; }
 #st-preview-canvas {
     width: 40px;

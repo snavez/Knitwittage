@@ -17,13 +17,17 @@ type. Park until someone actually asks.
 
 Shipped. "Row effect" fieldset added to the Add / Edit Stitch overlay:
 
-- **Same** (1 in / 1 out) — default for all existing stitches.
-- **Decrease by N** → consumes 1+N, produces 1 (e.g. K2tog = Decrease by 1: 2 in / 1 out).
-- **Increase by N** → consumes 1, produces 1+N (e.g. KFB = Increase by 1: 1 in / 2 out).
-- **Custom** — raw consumes + produces for unusual cases (YO: 0 in / 1 out; M1: 0 in / 1 out).
+- **No inc/dec** — default for all existing stitches.
+- **Decrease by N** stitches.
+- **Increase by N** stitches.
 
-`consumes` and `produces` saved to the user-stitch record and IndexedDB.
-Older records without the fields default to Same (1/1) at load time.
+Stored as a single signed `delta` field on the user-stitch record (0 = no
+change, +N = increase, -N = decrease). The chart-based row-balance check
+(#19) only needs the per-row sum of deltas, so we don't need separate
+consumes/produces. Older records without the field (including the brief
+`consumes`/`produces` schema we shipped on the way) load as `delta: 0`
+or migrate via `produces - consumes`.
+
 ARCHITECTURE.md §5.4 updated. Prerequisite for #19 now met.
 
 ---
@@ -123,6 +127,95 @@ end-of-piece break" vs "I just left a row blank by accident".
 Now that #11 (cast-on preamble) has shipped, the cast-on line can be reused at
 each piece boundary; the cast-off side just needs a `Cast off N stitches` line
 in the same position.
+
+### 25. Print: option to omit the chart
+
+The Instructions print view currently always emits the chart panels alongside
+the row-by-row text. For very large pieces a chart printout is bulky and
+often less useful than the instructions alone — pages and pages of tiny
+cells the knitter scrolls past to find the row text.
+
+Add a third toggle next to "Icons in chart" in the print prep dialog:
+
+- **Include chart** (default on)
+- When off: skip the chart panel rendering entirely; print only the
+  instructions text + legend + abbreviation block.
+
+Lives in [js/print.js](js/print.js); the toggle reads in `preparePrint()`
+and short-circuits the chart-section build.
+
+### 26. Within-row repeat detection
+
+Many knitting rows have an internal repeat — a small motif that recurs across
+the row with non-repeated edge sections. Common in cabled / lace patterns:
+
+```
+K2, [P1, C4F, P2, C4B, P2] x 4, P1
+```
+
+…rather than the current run-length output:
+
+```
+K2, P1, C4F, P2, C4B, P2, P1, C4F, P2, C4B, P2, P1, C4F, P2, C4B, P2, P1, C4F, P2, C4B, P2, P1
+```
+
+Detection: take the row's encoded stitch sequence and search for the longest
+substring that fits ≥ 2 consecutive times somewhere in the middle, with
+optional non-repeating prefix/suffix. Output as
+`<prefix>, [<repeat>] x <n>, <suffix>` when the saving is significant
+(say ≥ 30% shorter than the run-length form).
+
+Two output styles to consider:
+- `[…] x 4` — explicit repeat count.
+- `* … rep from * until N sts remain, …` — traditional pattern phrasing.
+A simple toggle in the Instructions modal can let the user pick.
+
+Lives in [js/instructions.js](js/instructions.js), in the row-encoder pipeline
+between the run-length pass and the final string assembly.
+
+### 27. Cross-row repeat detection (vertical pattern repeat)
+
+Many patterns are built from a small block of rows that repeats vertically —
+e.g. an 8-row cable repeat, or a 4-row lace stitch. Instead of emitting:
+
+```
+Row 1: ...
+Row 2: ...
+...
+Row 16: ...   (identical to row 8)
+Row 17: ...   (identical to row 9)
+```
+
+…detect that rows 9–16 are byte-identical to rows 1–8 (and 17–24, etc.) and
+collapse to:
+
+```
+Rows 1–8: <full text>
+Repeat rows 1–8 N more times, until <piece is X cm / X rows>.
+```
+
+Detection: hash each row's encoded text + colour run, scan for the smallest
+period P such that row[i] == row[i mod P] for all i ≥ P. When P < total
+rows / 2 and the pattern holds for the full chart, collapse.
+
+**Shaping caveat.** Sleeves, jumper bodies, etc. often have inc/dec rows
+that break a strict repeat — but the *texture* still repeats. An experienced
+knitter handles this with phrases like:
+
+```
+Repeat rows 1–8 in pattern, decreasing 1 st each end every 6 rows
+until 80 sts remain.
+```
+
+Inferring shaping from a chart is a bigger problem — needs the inc/dec
+metadata from #8 + #19's row-balance plumbing, plus pattern recognition for
+"increases happen at row edges, every M rows." Worth a follow-up after the
+plain vertical-repeat detection lands.
+
+Lives in [js/instructions.js](js/instructions.js); needs the row strings as
+discrete units so they can be compared. The current encoder buffers `rowsText`
+already (see the abbreviations-block code at line ~290) — extend that buffer
+to a per-row array and hash from there.
 
 ---
 
