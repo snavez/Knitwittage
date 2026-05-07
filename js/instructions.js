@@ -531,35 +531,20 @@ function encodeRowWithStitches(colorRow, stitchRow, defaultSt, labelMap, reverse
 }
 
 // === Crossing Notation & Descriptions ===
+function isTwistCrossing(clusters) {
+    if (clusters.length === 2) return clusters[0].st !== clusters[1].st;
+    if (clusters.length === 3) return clusters[0].st !== clusters[2].st;
+    return false;
+}
+
 function buildCrossingNotation(stitch) {
     const clusters = stitch.clusters || [];
-    const dirLabel = stitch.dir === 'left' ? 'LC' : 'RC';
+    const n = stitch.width;
 
-    if (clusters.length === 0 || clusters.length === 1) {
-        // Pure cable (all same type)
-        const half = Math.floor(stitch.width / 2);
-        return `${half}/${stitch.width - half} ${dirLabel}`;
+    if (isTwistCrossing(clusters)) {
+        return `Tw${n}${stitch.dir === 'left' ? 'L' : 'R'}`;
     }
-
-    if (clusters.length === 2) {
-        const left = clusters[0];
-        const right = clusters[1];
-        const leftLabel = left.st === 'knit' ? `K${left.count}` : `P${left.count}`;
-        const rightLabel = right.st === 'knit' ? `K${right.count}` : `P${right.count}`;
-        return `${leftLabel}/${rightLabel} ${dirLabel}`;
-    }
-
-    if (clusters.length === 3) {
-        const left = clusters[0];
-        const center = clusters[1];
-        const right = clusters[2];
-        const leftLabel = left.st === 'knit' ? `K${left.count}` : `P${left.count}`;
-        const centerLabel = center.st === 'knit' ? `K${center.count}` : `P${center.count}`;
-        const rightLabel = right.st === 'knit' ? `K${right.count}` : `P${right.count}`;
-        return `${leftLabel}/${centerLabel}/${rightLabel} ${dirLabel}`;
-    }
-
-    return `${stitch.width}-st ${dirLabel}`;
+    return `C${n}${stitch.dir === 'left' ? 'F' : 'B'}`;
 }
 
 // Helper for #12: spell out a count + stitch as a human phrase
@@ -573,14 +558,13 @@ function describeStitchPhrase(count, st) {
 function buildCrossingDescription(stitch) {
     const clusters = stitch.clusters || [];
     const isLeft = stitch.dir === 'left';
-    const direction = isLeft ? 'Left cross' : 'Right cross';
+    const twist = isTwistCrossing(clusters);
+    const direction = twist
+        ? (isLeft ? 'Twist Left' : 'Twist Right')
+        : (isLeft ? 'Cable Front' : 'Cable Back');
     const hold = isLeft ? 'front' : 'back';
 
-    // Left Cross: slip LEFT group to CN, hold at FRONT → right group leans left in front
-    // Right Cross: slip RIGHT group to CN, hold at BACK → left group leans right in front
-
     if (clusters.length === 0 || clusters.length === 1) {
-        // Pure cable — both halves knit.
         const half = Math.floor(stitch.width / 2);
         const rem = stitch.width - half;
         const summary = `Knit ${isLeft ? rem : half}, Knit ${isLeft ? half : rem} (${direction})`;
@@ -595,13 +579,11 @@ function buildCrossingDescription(stitch) {
         const left = clusters[0];
         const right = clusters[1];
         if (isLeft) {
-            // LC: slip left group to CN front, work right group from LN, then left from CN
             const summary = `${describeStitchPhrase(right.count, right.st)}, ${describeStitchPhrase(left.count, left.st)} (${direction})`;
             const workFirst = right.st === 'knit' ? `Knit ${right.count}` : `Purl ${right.count}`;
             const workCN = left.st === 'knit' ? `knit ${left.count}` : `purl ${left.count}`;
             return `${summary}: Slip ${left.count} sts to cable needle and hold at ${hold}. ${workFirst} from left needle, ${workCN} from cable needle.`;
         } else {
-            // RC: slip right group to CN back, work left group from LN, then right from CN
             const summary = `${describeStitchPhrase(left.count, left.st)}, ${describeStitchPhrase(right.count, right.st)} (${direction})`;
             const workFirst = left.st === 'knit' ? `Knit ${left.count}` : `Purl ${left.count}`;
             const workCN = right.st === 'knit' ? `knit ${right.count}` : `purl ${right.count}`;
@@ -624,7 +606,7 @@ function buildCrossingDescription(stitch) {
         }
     }
 
-    return `Work ${stitch.width}-stitch ${isLeft ? 'left' : 'right'} cross.`;
+    return `Work ${stitch.width}-stitch ${direction.toLowerCase()}.`;
 }
 
 function collectUniqueCrossings(stitchRegion) {

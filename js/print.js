@@ -286,7 +286,7 @@ function buildPanelTable(opts) {
                     } else {
                         td.textContent = (typeof buildCrossingNotation === 'function')
                             ? buildCrossingNotation(stitch)
-                            : `${stitch.width}-st ${stitch.dir === 'left' ? 'LC' : 'RC'}`;
+                            : `C${stitch.width}${stitch.dir === 'left' ? 'F' : 'B'}`;
                     }
                     td.colSpan = visibleSpan;
                     td.className = (td.className + ' cable-cell').trim();

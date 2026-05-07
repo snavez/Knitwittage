@@ -351,7 +351,8 @@ implicitly the module's public API. Listed here for orientation.
 - `buildStitchTile(stitch, options)` — used by `initStitchPalette` and by
   the gallery if/when it ever shares this code path.
 - `buildCrossingNotation(stitch)` — used by instructions.js + print.js to
-  render cable codes.
+  render cable/twist codes (`CnF`/`CnB` for all-knit cables,
+  `TwnL`/`TwnR` for mixed knit/purl twists).
 - `collectUniqueCrossings(stitchRegion)` — for legend.
 
 **From gallery.js:**

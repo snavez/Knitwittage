@@ -48,19 +48,18 @@ Worth sketching wireframes before code.
 
 ## Instructions tab
 
-### 13. Cable code rename
+### ~~13. Cable code rename~~ ✓
 
-Drop the slash format (`2/2 LC`) in favour of:
+Shipped. Crossings now use standard notation:
 
-- `CnF` / `CnB` for **all-knit** cables (where *n* is the cell count). Continues the
-  C4F/C4B convention most knitters know from Vogue Stitchionary, EZ patterns, traditional
-  Aran sources.
-- `TwnL` / `TwnR` for **mixed knit/purl twists** (cluster has both Ks and Ps).
-
-Logic lives in the row encoder in `js/instructions.js`; cluster contents are already
-known, just need a new naming function. Then update the palette tile labels for
-`left-cross` / `right-cross` so they reflect the convention (e.g. "CF / TwL" and
-"CB / TwR" depending on context).
+- `CnF` / `CnB` for **all-knit** cables (e.g. C4F for a 4-stitch left cable).
+- `TwnL` / `TwnR` for **mixed knit/purl twists** (e.g. Tw4L for a 4-stitch
+  left twist where knits cross over purls).
+- 3-cluster crossings with a purl centre but knit outers (K2/P1/K2) are
+  correctly classified as cables — only the outer groups determine the type.
+- Gallery tiles show `CF (TwL)` / `CB (TwR)` so the user sees both roles.
+- Crossing Definitions in the instructions use matching `(Cable Front)` /
+  `(Twist Left)` etc. terminology.
 
 ### 14a. End-of-piece marker for full no-stitch rows (long-term)
 

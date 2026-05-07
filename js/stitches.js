@@ -332,16 +332,16 @@ const BUILTIN_STITCHES = [
         order: 20,
     },
     {
-        id: 'left-cross', label: 'CF', sublabel: 'left x',
-        title: 'Cable Front (left cross) — click and drag across a row of 2–8 cells to apply. Reads K/P from the row below to determine the crossing.',
+        id: 'left-cross', label: 'CF', sublabel: '(TwL)',
+        title: 'Cable Front / Twist Left — click and drag across a row of 2–8 cells to apply. All-knit crossings become cables (CnF), mixed knit/purl become twists (TwnL).',
         kind: 'cross', dir: 'left',
         drawIcon: (ctx, s) => drawCrossTileIcon(ctx, s, 'left'),
         drawCell: null, // rendered by drawCrossingOverlay in cables.js
         order: 30,
     },
     {
-        id: 'right-cross', label: 'CB', sublabel: 'right x',
-        title: 'Cable Back (right cross) — click and drag across a row of 2–8 cells to apply. Reads K/P from the row below to determine the crossing.',
+        id: 'right-cross', label: 'CB', sublabel: '(TwR)',
+        title: 'Cable Back / Twist Right — click and drag across a row of 2–8 cells to apply. All-knit crossings become cables (CnB), mixed knit/purl become twists (TwnR).',
         kind: 'cross', dir: 'right',
         drawIcon: (ctx, s) => drawCrossTileIcon(ctx, s, 'right'),
         drawCell: null,
