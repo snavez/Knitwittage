@@ -186,28 +186,13 @@ function formatInstructionsText(pattern, mode) {
         });
     }
 
-    // Lace/decrease abbreviations — list only those actually used. The earlier
-    // version dumped K2tog/SSK/P2tog/SSP/S2KP/SP2P whenever any decrease or YO
-    // appeared, which surfaced abbreviations the chart never contains.
-    const usedSet = new Set();
-    if (stitchRegion) {
-        for (const row of stitchRegion) {
-            if (!row) continue;
-            for (const s of row) {
-                if (typeof s === 'string') usedSet.add(s);
-            }
-        }
-    }
-    const abbrevs = [];
-    if (usedSet.has('hole'))    abbrevs.push('  YO = Yarn over (creates decorative hole)');
-    if (usedSet.has('k-right')) abbrevs.push('  K2tog = Knit 2 together (right-leaning decrease)');
-    if (usedSet.has('k-left'))  abbrevs.push('  SSK = Slip, slip, knit (left-leaning decrease)');
-    if (usedSet.has('m1r'))     abbrevs.push('  M1R = Make 1 right (pick up bar back-to-front, knit through front loop)');
-    if (usedSet.has('m1l'))     abbrevs.push('  M1L = Make 1 left (pick up bar front-to-back, knit through back loop)');
-    if (abbrevs.length > 0) {
-        text += '\nLace/Decrease Abbreviations:\n';
-        text += abbrevs.join('\n') + '\n';
-    }
+    // Abbreviations block — listed AFTER the rows are generated below so we
+    // can scan the actually-emitted text for known codes. This catches the
+    // subtle case where a k-right cell on a WS row prints as P2tog (not
+    // K2tog), which the chart-only check missed. We hold the location for
+    // the abbrev block here and splice it in after the row loop runs.
+    const abbrevPlaceholder = '___ABBREV_BLOCK___';
+    text += abbrevPlaceholder;
 
     // User-defined custom stitches used in this pattern
     if (typeof StitchRegistry !== 'undefined' && stitchRegion) {
@@ -263,6 +248,10 @@ function formatInstructionsText(pattern, mode) {
         text += `Cast on ${castOn} ${noun}.\n`;
     }
 
+    // Buffer the row text separately so we can scan it for actually-emitted
+    // codes (including auto-converted ones like P2tog, SSP, S2KP) and build
+    // the abbreviation block from those.
+    let rowsText = '';
     for (let i = 0; i < activeArrayRows.length; i++) {
         const knittingRow = i + 1;
         const arrayRow = activeArrayRows[i];
@@ -281,7 +270,7 @@ function formatInstructionsText(pattern, mode) {
                 isRS,
                 hasColors
             );
-            text += `Row ${knittingRow} (${side}): ${rowInstructions}\n`;
+            rowsText += `Row ${knittingRow} (${side}): ${rowInstructions}\n`;
         } else {
             const rowInstructions = encodeRowWithStitches(
                 pattern[arrayRow],
@@ -291,9 +280,35 @@ function formatInstructionsText(pattern, mode) {
                 true,
                 hasColors
             );
-            text += `Rnd ${knittingRow}: ${rowInstructions}\n`;
+            rowsText += `Rnd ${knittingRow}: ${rowInstructions}\n`;
         }
     }
+    text += rowsText;
+
+    // Build the abbreviation block from codes that actually appear in the
+    // emitted row text. This catches WS-converted codes (P2tog, SSP) and
+    // YO-balancing conversions (S2KP, SP2P) that the chart-only check used
+    // to miss.
+    const KNOWN_CODES = [
+        ['YO',    'Yarn over — wrap yarn around the right needle to create a decorative hole'],
+        ['K2tog', 'Knit 2 together — right-leaning decrease worked on the RS'],
+        ['SSK',   'Slip, slip, knit — left-leaning decrease worked on the RS (slip 2 sts knitwise one at a time, knit them together through the back loops)'],
+        ['P2tog', 'Purl 2 together — right-leaning decrease worked on the WS'],
+        ['SSP',   'Slip, slip, purl — left-leaning decrease worked on the WS (slip 2 sts knitwise, return to LN, purl together through the back)'],
+        ['M1R',   'Make 1 right — pick up the bar between stitches back-to-front, knit through the front loop'],
+        ['M1L',   'Make 1 left — pick up the bar between stitches front-to-back, knit through the back loop'],
+        ['S2KP',  'Slip 2 knitwise together, K1, pass slipped sts over — centred double decrease'],
+        ['SP2P',  'Slip 2 purlwise, P1, pass slipped sts over — centred double decrease worked on the WS'],
+    ];
+    const abbrevs = [];
+    for (const [code, desc] of KNOWN_CODES) {
+        const re = new RegExp('\\b' + code + '\\b');
+        if (re.test(rowsText)) abbrevs.push(`  ${code} = ${desc}`);
+    }
+    const abbrevBlock = abbrevs.length > 0
+        ? '\nAbbreviations:\n' + abbrevs.join('\n') + '\n'
+        : '';
+    text = text.replace(abbrevPlaceholder, abbrevBlock);
 
     return text;
 }
