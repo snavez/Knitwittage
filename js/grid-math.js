@@ -8,13 +8,21 @@
 // Constants kept in lockstep with their DOM-side equivalents:
 //   - GRID_CELL_BASE: matches CSS --cell-base (22px).
 //   - GRID_GAP_PX:    matches CSS --cell-gap (1px), the gridline thickness.
-//   - GRID_CANVAS_LIMIT_PX: safe ceiling across browsers (Safari/iOS in
-//                            particular caps a single canvas at ~16 384px).
+//   - GRID_CANVAS_LIMIT_PX: ceiling on a single canvas dimension. Most
+//                            browsers cap an HTMLCanvasElement at ~16 384px
+//                            (Safari/iOS) or ~32 767px (Chrome/Firefox on
+//                            desktop). At 1000×1000 with cells at the
+//                            default 22px the canvas would need to be
+//                            ~23 000px — this constant is the trade-off
+//                            between letting big grids reach a comfortable
+//                            zoom and keeping per-canvas GPU memory under
+//                            ~2GB. Bump down to 16 000 if users on integrated
+//                            GPUs or iOS report white-outs at high zoom.
 //   - GRID_HISTORY_BASE: how many undo snapshots a "small" grid gets;
 //                         scaled down for big grids by effectiveMaxHistory.
 const GRID_CELL_BASE = 22;
 const GRID_GAP_PX = 1;
-const GRID_CANVAS_LIMIT_PX = 16000;
+const GRID_CANVAS_LIMIT_PX = 22000;
 const GRID_HISTORY_BASE = 50;
 const GRID_HISTORY_MIN = 5;
 const GRID_HISTORY_TARGET_MEM_CELLS = 3_000_000;
