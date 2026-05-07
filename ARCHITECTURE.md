@@ -462,6 +462,8 @@ The shape stored in IndexedDB and serialised to gallery / pattern files:
     { type: 'text', x, y, text, fill, fontSize },
   ],
   multiCell: false,              // true → drag-placed cluster, lead+echoes
+  consumes: 1,                   // stitches consumed from previous row (default 1)
+  produces: 1,                   // stitches produced for next row (default 1)
   source: 'user',
   order: 500
 }

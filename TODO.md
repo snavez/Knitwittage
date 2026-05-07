@@ -13,19 +13,18 @@ carry rendering smarts (cluster detection, echoes, drag-placement) that a user-e
 icon would break. Possible compromise: editable for simple stitches, locked for cross-
 type. Park until someone actually asks.
 
-### 8. Inc/dec metadata in the stitch editor
+### ~~8. Inc/dec metadata in the stitch editor~~ ✓
 
-Add a small fieldset to the **Add / Edit Stitch** overlay capturing the stitch's effect
-on row count: how many stitches it **consumes** from the previous row and **produces**
-for the next. Three quick presets — *Same* (1 in / 1 out, the default), *Increase by N*,
-*Decrease by N* — plus a "Custom" option that exposes the two numbers directly for
-unusual cases (e.g. K3tog → 3 / 1; M1 → 0 / 1; YO → 0 / 1).
+Shipped. "Row effect" fieldset added to the Add / Edit Stitch overlay:
 
-Bump the gallery file format to carry the metadata; existing user stitches without it
-default to *Same*. This is a prerequisite for #19 (per-row stitch counter + balance
-check) — populating the field now means the data is already there when that feature
-ships. Useful on its own too: surface inc/dec status in the legend / instructions
-("**K2tog** *(decrease 1)*").
+- **Same** (1 in / 1 out) — default for all existing stitches.
+- **Decrease by N** → consumes 1+N, produces 1 (e.g. K2tog = Decrease by 1: 2 in / 1 out).
+- **Increase by N** → consumes 1, produces 1+N (e.g. KFB = Increase by 1: 1 in / 2 out).
+- **Custom** — raw consumes + produces for unusual cases (YO: 0 in / 1 out; M1: 0 in / 1 out).
+
+`consumes` and `produces` saved to the user-stitch record and IndexedDB.
+Older records without the fields default to Same (1/1) at load time.
+ARCHITECTURE.md §5.4 updated. Prerequisite for #19 now met.
 
 ---
 

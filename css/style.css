@@ -2144,6 +2144,37 @@ body.knit-active .workbench {
     text-align: left;
 }
 .st-multicell-toggle input { margin: 0; flex: 0 0 auto; }
+.st-row-effect {
+    border: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    justify-self: stretch;
+}
+.st-re-option {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--serif);
+    font-size: 0.9rem;
+    color: var(--text);
+    flex-wrap: wrap;
+    cursor: pointer;
+}
+.st-re-option input[type=radio] { margin: 0; flex: 0 0 auto; }
+.st-re-n {
+    width: 44px;
+    padding: 2px 4px;
+    font-family: var(--sans);
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: #fff;
+    text-align: center;
+}
+.st-re-n:disabled { opacity: 0.4; }
 #st-preview-canvas {
     width: 40px;
     height: 40px;

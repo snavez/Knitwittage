@@ -29,6 +29,11 @@ const editorState = {
     // Live text-overlay state (see showTextOverlay / commitLiveText)
     textOverlayOpen: false,
     textFontSize: 72,
+    // Row-effect metadata (#8)
+    rowEffectPreset: 'same',  // 'same' | 'decrease' | 'increase' | 'custom'
+    rowEffectN: 1,            // N for decrease/increase presets
+    rowEffectConsumes: 1,     // raw value for custom
+    rowEffectProduces: 1,     // raw value for custom
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,6 +54,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('st-multi-cell').addEventListener('change', (e) => {
         editorState.multiCell = e.target.checked;
+    });
+
+    // Row-effect fieldset wiring
+    document.querySelectorAll('input[name="st-row-effect"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+            editorState.rowEffectPreset = radio.value;
+            syncRowEffectInputs();
+        });
+    });
+    document.getElementById('st-re-n-dec').addEventListener('input', (e) => {
+        editorState.rowEffectN = Math.max(1, parseInt(e.target.value, 10) || 1);
+    });
+    document.getElementById('st-re-n-inc').addEventListener('input', (e) => {
+        editorState.rowEffectN = Math.max(1, parseInt(e.target.value, 10) || 1);
+    });
+    document.getElementById('st-re-consumes').addEventListener('input', (e) => {
+        editorState.rowEffectConsumes = Math.max(0, parseInt(e.target.value, 10) || 0);
+    });
+    document.getElementById('st-re-produces').addEventListener('input', (e) => {
+        editorState.rowEffectProduces = Math.max(0, parseInt(e.target.value, 10) || 0);
     });
 
     document.getElementById('st-stroke-width').addEventListener('input', (e) => {
@@ -97,6 +122,7 @@ function openStitchEditor(existing = null) {
         document.getElementById('st-detailed').value = existing.detailedInstructions || '';
         document.getElementById('st-multi-cell').checked = editorState.multiCell;
         editorState.detailedTouched = !!existing.detailedInstructions;
+        loadRowEffect(existing.consumes, existing.produces);
         document.getElementById('stitch-editor-title').textContent = `Edit Stitch: ${existing.label || existing.id}`;
         document.getElementById('stitch-editor-save').textContent = 'Save changes';
     } else {
@@ -152,12 +178,17 @@ function resetEditor() {
     editorState.detailedTouched = false;
     editorState.textOverlayOpen = false;
     editorState.textFontSize = 72;
+    editorState.rowEffectPreset = 'same';
+    editorState.rowEffectN = 1;
+    editorState.rowEffectConsumes = 1;
+    editorState.rowEffectProduces = 1;
 
     document.getElementById('st-code').value = '';
     document.getElementById('st-detailed').value = '';
     document.getElementById('st-stroke-width').value = '6';
     document.getElementById('st-text-size').value = '72';
     document.getElementById('st-multi-cell').checked = false;
+    syncRowEffectInputs();
     document.getElementById('st-text-row').style.display = 'none';
     hideTextOverlay({ commit: false });
     document.querySelectorAll('#stitch-editor-modal .st-tool-btn').forEach(b => {
@@ -165,6 +196,51 @@ function resetEditor() {
     });
     renderColorSwatches();
     renderFillSwatches();
+}
+
+// === Row-effect helpers ===
+
+function syncRowEffectInputs() {
+    const preset = editorState.rowEffectPreset;
+    document.querySelectorAll('input[name="st-row-effect"]').forEach(r => {
+        r.checked = (r.value === preset);
+    });
+    document.getElementById('st-re-n-dec').disabled = (preset !== 'decrease');
+    document.getElementById('st-re-n-inc').disabled = (preset !== 'increase');
+    document.getElementById('st-re-consumes').disabled = (preset !== 'custom');
+    document.getElementById('st-re-produces').disabled = (preset !== 'custom');
+}
+
+function loadRowEffect(consumes, produces) {
+    const c = consumes ?? 1;
+    const p = produces ?? 1;
+    if (c === 1 && p === 1) {
+        editorState.rowEffectPreset = 'same';
+    } else if (p === 1 && c > 1) {
+        editorState.rowEffectPreset = 'decrease';
+        editorState.rowEffectN = c - 1;
+        document.getElementById('st-re-n-dec').value = editorState.rowEffectN;
+    } else if (c === 1 && p > 1) {
+        editorState.rowEffectPreset = 'increase';
+        editorState.rowEffectN = p - 1;
+        document.getElementById('st-re-n-inc').value = editorState.rowEffectN;
+    } else {
+        editorState.rowEffectPreset = 'custom';
+        editorState.rowEffectConsumes = c;
+        editorState.rowEffectProduces = p;
+        document.getElementById('st-re-consumes').value = c;
+        document.getElementById('st-re-produces').value = p;
+    }
+    syncRowEffectInputs();
+}
+
+function getEffectiveRowEffect() {
+    switch (editorState.rowEffectPreset) {
+        case 'decrease': return { consumes: 1 + editorState.rowEffectN, produces: 1 };
+        case 'increase': return { consumes: 1, produces: 1 + editorState.rowEffectN };
+        case 'custom':   return { consumes: editorState.rowEffectConsumes, produces: editorState.rowEffectProduces };
+        default:         return { consumes: 1, produces: 1 };
+    }
 }
 
 function renderColorSwatches() {
@@ -1011,6 +1087,7 @@ async function saveStitch() {
         }
     }
 
+    const { consumes, produces } = getEffectiveRowEffect();
     const record = {
         id,
         label: code,
@@ -1020,6 +1097,8 @@ async function saveStitch() {
         detailedInstructions: detailed,
         shapes: editorState.shapes,
         multiCell: editorState.multiCell,
+        consumes,
+        produces,
         source: 'user',
         order: existing?.order ?? 500,
         createdAt: existing?._record?.createdAt ?? Date.now(),
