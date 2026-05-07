@@ -2128,14 +2128,14 @@ body.knit-active .workbench {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-family: var(--serif);
-    font-size: 0.82rem;
+    font-family: var(--sans);
+    font-size: 0.75rem;
     font-weight: 400;
-    line-height: 1.35;
+    line-height: 1.4;
     text-transform: none;
     letter-spacing: 0;
     text-align: left;
-    color: var(--text);
+    color: var(--text-muted);
     cursor: pointer;
     justify-self: stretch;
 }
@@ -2150,18 +2150,28 @@ body.knit-active .workbench {
     padding: 0;
     display: flex;
     flex-direction: column;
+    align-items: stretch;
     gap: 6px;
     justify-self: stretch;
+    min-width: 0;
+    width: 100%;
 }
-.st-re-option {
+.stitch-editor-right .st-re-option {
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-family: var(--serif);
-    font-size: 0.9rem;
-    color: var(--text);
+    gap: 6px;
+    font-family: var(--sans);
+    font-size: 0.75rem;
+    font-weight: 400;
+    line-height: 1.4;
+    text-transform: none;
+    letter-spacing: 0;
+    text-align: left;
+    color: var(--text-muted);
     flex-wrap: wrap;
     cursor: pointer;
+    align-self: stretch;
+    width: 100%;
 }
 .st-re-option input[type=radio] { margin: 0; flex: 0 0 auto; }
 .st-re-n {

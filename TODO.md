@@ -45,6 +45,53 @@ Worth sketching wireframes before code.
 
 ---
 
+## Generate panel
+
+### 22. Rename "Generate" → "Colourwork"
+
+The right-rail "Generate" section produces colourwork patterns (random + image-
+based). Renaming makes its purpose clearer and leaves room for non-colourwork
+generators (e.g. #20's garment outline) to live elsewhere.
+
+- Section heading: **Generate** → **Colourwork**
+- First button: **Random pattern** → **Generate random pattern**
+- Second button: **From image** label stays — but address #23 and #24 first.
+
+### 23. From-image: extend palette beyond default colours
+
+The image-quantisation step currently maps every pixel to the nearest colour
+in the user's *active* palette — so a photo with rich tonal range gets
+squashed into 12-ish colours and loses fidelity. Add a palette-source option
+in the modal:
+
+- **Active palette only** (default) — current behaviour.
+- **Auto-extract N colours from image** — k-means or median-cut over the
+  pixels, producing N palette entries the user didn't have. Show the new
+  swatches alongside the preview so the user can accept / reject before
+  importing. N capped at ~16-24.
+- *(stretch)* **Match across saved patterns** — quantise to colours the
+  user has used in any previous project loaded from IndexedDB, not just
+  this one's palette.
+
+Lives in [js/image.js](js/image.js).
+
+### 24. From-image: resize controls don't propagate to preview or grid (bug)
+
+Repro: open "From image", drop an image — preview renders at some default
+size. Bump the rows or stitches inputs in the modal: the preview pane
+doesn't rebuild, and clicking **Apply to grid** brings the chart through
+at the original size, not the resized one.
+
+Two fixes:
+
+- The resize inputs need to trigger a re-quantise + re-paint of the
+  preview canvas (debounced, so dragging the number input doesn't thrash).
+- On **Apply to grid**, the destination grid must be re-initialised at
+  the resized rows×cols and `state.grid` / `state.stitchGrid` sized to
+  match before the pixel data lands.
+
+---
+
 ## Instructions tab
 
 ### ~~13. Cable code rename~~ ✓
