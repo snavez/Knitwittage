@@ -51,15 +51,11 @@ Worth sketching wireframes before code.
 
 ## Generate panel
 
-### 22. Rename "Generate" → "Colourwork"
+### ~~22. Rename "Generate" → "Colourwork"~~ ✓
 
-The right-rail "Generate" section produces colourwork patterns (random + image-
-based). Renaming makes its purpose clearer and leaves room for non-colourwork
-generators (e.g. #20's garment outline) to live elsewhere.
-
-- Section heading: **Generate** → **Colourwork**
-- First button: **Random pattern** → **Generate random pattern**
-- Second button: **From image** label stays — but address #23 and #24 first.
+Shipped. Right-rail section heading is now **Colourwork**, the first
+button reads **Generate random pattern**, and the second stays as
+**From image** (#23 / #24 still open against it).
 
 ### 23. From-image: extend palette beyond default colours
 
@@ -128,21 +124,13 @@ Now that #11 (cast-on preamble) has shipped, the cast-on line can be reused at
 each piece boundary; the cast-off side just needs a `Cast off N stitches` line
 in the same position.
 
-### 25. Print: option to omit the chart
+### ~~25. Print: option to omit the chart~~ ✓
 
-The Instructions print view currently always emits the chart panels alongside
-the row-by-row text. For very large pieces a chart printout is bulky and
-often less useful than the instructions alone — pages and pages of tiny
-cells the knitter scrolls past to find the row text.
-
-Add a third toggle next to "Icons in chart" in the print prep dialog:
-
-- **Include chart** (default on)
-- When off: skip the chart panel rendering entirely; print only the
-  instructions text + legend + abbreviation block.
-
-Lives in [js/print.js](js/print.js); the toggle reads in `preparePrint()`
-and short-circuits the chart-section build.
+Shipped. **Include chart** toggle added next to **Icons in chart** in
+the Instructions modal — default on. When unchecked, `preparePrint()`
+skips the chart panel rendering AND the legend, leaving just the
+text instructions + abbreviation block. Useful for very large pieces
+where chart pages add bulk without value.
 
 ### 26. Within-row repeat detection
 

@@ -59,6 +59,10 @@ function preparePrint() {
 
     // Read user prefs
     const useIcons = !!document.getElementById('print-icons-toggle')?.checked;
+    // "Include chart" toggle — when off, skip the panel-build + legend so the
+    // print is text-only. Useful for very large pieces where chart pages add
+    // bulk without much value.
+    const includeChart = document.getElementById('print-chart-toggle')?.checked !== false;
     _printIconCache.clear();
 
     // Auto-fit cell size: larger when the chart is narrow (fits in one panel),
@@ -82,41 +86,46 @@ function preparePrint() {
     // ~660KB of style attributes — enough to corrupt some PDF print engines.
     injectPrintCellStyle(cellMm);
 
-    // Render panels
+    // Render panels (or skip when "Include chart" is off)
     const wrapper = document.getElementById('print-grid-wrapper');
     wrapper.innerHTML = '';
-    const drawnClusters = new Set();
-    const r1IsWS = (state.firstRow === 'WS');
-    let panelIdx = 0;
-    for (const rc of rowChunks) {
-        for (const cc of colChunks) {
-            const panel = document.createElement('div');
-            panel.className = 'print-panel';
-            if (panelIdx > 0) panel.classList.add('print-panel-break');
+    const legendEl = document.getElementById('print-legend');
+    if (legendEl) legendEl.innerHTML = '';
 
-            // Single-panel charts don't need a label; multi-panel ones get
-            // "Rows X–Y · Cols A–B" so the knitter can orient.
-            if (rowChunks.length > 1 || colChunks.length > 1) {
-                const label = document.createElement('div');
-                label.className = 'print-panel-label';
-                label.textContent = buildPanelLabel(rc, cc, patRows);
-                panel.appendChild(label);
+    if (includeChart) {
+        const drawnClusters = new Set();
+        const r1IsWS = (state.firstRow === 'WS');
+        let panelIdx = 0;
+        for (const rc of rowChunks) {
+            for (const cc of colChunks) {
+                const panel = document.createElement('div');
+                panel.className = 'print-panel';
+                if (panelIdx > 0) panel.classList.add('print-panel-break');
+
+                // Single-panel charts don't need a label; multi-panel ones get
+                // "Rows X–Y · Cols A–B" so the knitter can orient.
+                if (rowChunks.length > 1 || colChunks.length > 1) {
+                    const label = document.createElement('div');
+                    label.className = 'print-panel-label';
+                    label.textContent = buildPanelLabel(rc, cc, patRows);
+                    panel.appendChild(label);
+                }
+
+                const table = buildPanelTable({
+                    pattern, stitchRegion, rowChunk: rc, colChunk: cc,
+                    cellMm, isFlat, r1IsWS, drawnClusters,
+                    hasColors, colorSymbolMap, useIcons,
+                });
+                panel.appendChild(table);
+                wrapper.appendChild(panel);
+                panelIdx++;
             }
-
-            const table = buildPanelTable({
-                pattern, stitchRegion, rowChunk: rc, colChunk: cc,
-                cellMm, isFlat, r1IsWS, drawnClusters,
-                hasColors, colorSymbolMap, useIcons,
-            });
-            panel.appendChild(table);
-            wrapper.appendChild(panel);
-            panelIdx++;
         }
-    }
 
-    buildPrintLegend({
-        stitchRegion, colorsUsed, colorSymbolMap, hasColors, useIcons, cellMm,
-    });
+        buildPrintLegend({
+            stitchRegion, colorsUsed, colorSymbolMap, hasColors, useIcons, cellMm,
+        });
+    }
 
     // Text instructions
     const printInstr = document.getElementById('print-instructions');
