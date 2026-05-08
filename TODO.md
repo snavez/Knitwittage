@@ -75,6 +75,32 @@ in the modal:
 
 Lives in [js/image.js](js/image.js).
 
+### 28. Random pattern: cap to 2 colours per row
+
+The random-pattern generator currently picks any of the user-selected colours
+for each cell ([js/random.js:82](js/random.js)) — so if the user has 5 colours
+selected, a row can easily contain all 5. This violates the dominant
+stranded-colourwork convention (Fair Isle, Norwegian, etc.) where 2 yarns per
+row is the practical limit:
+
+- Floats: each yarn not in use is stranded across the back. 3+ colours per row
+  produces multiple long floats — stiff fabric, catches on fingers, harder
+  tension to manage.
+- Two-handed knitting (one yarn per hand) is the standard technique.
+
+3+ colours per row is occasionally seen in advanced/specialty work but is
+uncommon. Intarsia uses many colours but isn't stranded — and isn't really
+what our chart paradigm represents.
+
+**Fix:** for each row of the seed pattern, randomly pick 2 colours from the
+user's selection and only use those two for that row. Across rows the pairing
+can change, so a chart can still feature 5+ colours overall — just not
+simultaneously on one row.
+
+UX: probably enforce by default (no toggle) since stranded is the dominant
+idiom for chart-driven designs. If we ever want to relax, add a "Stranded
+(max 2/row)" / "Intarsia (any)" radio at the top of the random-pattern modal.
+
 ### 24. From-image: resize controls don't propagate to preview or grid (bug)
 
 Repro: open "From image", drop an image — preview renders at some default
