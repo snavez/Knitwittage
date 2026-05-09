@@ -93,10 +93,11 @@ const GridView = (function () {
         const chartW = totalWidth();
         const chartH = totalHeight();
         if (!canvasArea) return { w: Math.max(1, chartW), h: Math.max(1, chartH) };
-        // Read the visible window. Add a small margin so cells right at the
-        // edge of the viewport are fully painted (rather than half-painted
-        // and then revealed by a later scroll repaint).
-        const margin = 64;
+        // Add a generous margin around the visible window so a fast scroll
+        // (multiple cells/frame) doesn't outrun the canvas and reveal the
+        // container background. 256px ≈ 11 cells at full zoom — enough to
+        // absorb most flick-scrolls between paint frames.
+        const margin = 256;
         const w = Math.min(chartW, canvasArea.clientWidth + margin) || chartW || 1;
         const h = Math.min(chartH, canvasArea.clientHeight + margin) || chartH || 1;
         return { w: Math.max(1, w), h: Math.max(1, h) };
@@ -113,9 +114,15 @@ const GridView = (function () {
             container.style.display = 'block';
             container.style.position = 'relative';
             container.style.lineHeight = '0';
-            // Container's background shows through the 1px gap between cells,
-            // so set it to the soft border tone.
-            container.style.background = 'var(--border-soft)';
+            // Container background = surface colour (the "empty cell"
+            // tone). With viewport rendering the canvas only covers the
+            // visible window — anything outside the canvas shows the
+            // container's background, which used to be border-soft (the
+            // gridline brown) and produced an ugly brown frame around the
+            // chart and a flicker at the edges during fast scrolls (scroll
+            // event → JS canvas reposition has a 1-frame lag). Matching the
+            // surface colour makes that lag invisible.
+            container.style.background = 'var(--surface)';
 
             baseCanvas = document.createElement('canvas');
             baseCanvas.className = 'grid-base-canvas';
