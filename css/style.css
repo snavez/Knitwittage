@@ -765,6 +765,11 @@ body.knit-active .workbench {
 .grid-canvas-wrapper {
     position: relative;
     display: inline-block;
+    /* Clip the viewport canvases (base/overlay are inside #grid-container,
+       stitch-overlay is a sibling here) so their transform translation
+       doesn't extend .canvas-area's scroll overflow. See grid-view.js
+       ensureLayers for the full rationale. */
+    overflow: hidden;
 }
 
 .stitch-overlay {

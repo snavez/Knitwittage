@@ -114,6 +114,15 @@ const GridView = (function () {
             container.style.display = 'block';
             container.style.position = 'relative';
             container.style.lineHeight = '0';
+            // overflow: hidden is critical — the viewport-sized canvases are
+            // transformed to follow the scroll, and translated content DOES
+            // contribute to a scroll ancestor's overflow box. Without this
+            // clip, every scroll grew .canvas-area's scrollWidth/Height by
+            // the canvas-overhang amount in a feedback loop, letting the
+            // user scroll past the chart end and releasing the sticky
+            // bottom/right rails. Clipping at container's edges is fine —
+            // the canvases shouldn't visually extend past the chart anyway.
+            container.style.overflow = 'hidden';
             // Container background = surface colour (the "empty cell"
             // tone). With viewport rendering the canvas only covers the
             // visible window — anything outside the canvas shows the
@@ -178,10 +187,15 @@ const GridView = (function () {
             overlayCanvas.style.width = vw + 'px';
             overlayCanvas.style.height = vh + 'px';
         }
-        baseCanvas.style.left = scrollX + 'px';
-        baseCanvas.style.top = scrollY + 'px';
-        overlayCanvas.style.left = scrollX + 'px';
-        overlayCanvas.style.top = scrollY + 'px';
+        // Position via transform (NOT top/left). Transformed elements don't
+        // contribute to a scrollable ancestor's overflow, so the canvas
+        // can be larger or extend past the container without growing the
+        // scrollbars. With top/left, scroll-overflow grew on every scroll —
+        // a feedback loop that let the user "scroll past" the chart end and
+        // released the sticky bottom/right rails.
+        const tx = `translate3d(${scrollX}px, ${scrollY}px, 0)`;
+        baseCanvas.style.transform = tx;
+        overlayCanvas.style.transform = tx;
         return true;
     }
 
@@ -398,14 +412,13 @@ const GridView = (function () {
         if (sx === scrollX && sy === scrollY) return;
         scrollX = sx;
         scrollY = sy;
-        if (baseCanvas) {
-            baseCanvas.style.left = sx + 'px';
-            baseCanvas.style.top = sy + 'px';
-        }
-        if (overlayCanvas) {
-            overlayCanvas.style.left = sx + 'px';
-            overlayCanvas.style.top = sy + 'px';
-        }
+        // transform (NOT top/left) — see ensureLayers for the rationale.
+        // Transformed elements don't contribute to scroll overflow, which
+        // was making each scroll grow the scrollable extent in a feedback
+        // loop and breaking the sticky bottom/right rails.
+        const tx = `translate3d(${sx}px, ${sy}px, 0)`;
+        if (baseCanvas) baseCanvas.style.transform = tx;
+        if (overlayCanvas) overlayCanvas.style.transform = tx;
         scheduleRepaint();
     }
 

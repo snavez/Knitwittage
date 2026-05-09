@@ -638,8 +638,10 @@ function renderStitchOverlay() {
     canvas.height = newH;
     canvas.style.width = newW + 'px';
     canvas.style.height = newH + 'px';
-    canvas.style.left = scrollX + 'px';
-    canvas.style.top = scrollY + 'px';
+    // Position via transform (NOT top/left) so the canvas doesn't grow
+    // .canvas-area's scroll overflow when extending past the container —
+    // see grid-view.js setScrollOffset / ensureLayers for the rationale.
+    canvas.style.transform = `translate3d(${scrollX}px, ${scrollY}px, 0)`;
 
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
