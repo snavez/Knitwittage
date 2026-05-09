@@ -13,6 +13,22 @@ carry rendering smarts (cluster detection, echoes, drag-placement) that a user-e
 icon would break. Possible compromise: editable for simple stitches, locked for cross-
 type. Park until someone actually asks.
 
+### ~~30. Stop right-click from clearing cell colour~~ ✓
+
+Shipped. Right-click on the chart no longer destroys the cell's colour;
+it only cancels paste-ghost mode. Toggling the active colour on/off
+via left-click already covers the clear-cell case, and a destructive
+right-click was an awkward gotcha.
+
+### ~~31. Left-click toggles stitch on/off (parity with colour)~~ ✓
+
+Shipped. Clicking on a cell that already holds the active stitch now
+clears it — same toggle behaviour the colour palette has had for a
+while. Drag-strokes stay additive (like colour paint) so sweeping across
+already-painted cells doesn't flicker on/off, and the start cell is
+auto-repaired if the initial click toggled it off but the user then
+dragged away.
+
 ### ~~8. Inc/dec metadata in the stitch editor~~ ✓
 
 Shipped. "Row effect" fieldset added to the Add / Edit Stitch overlay:
@@ -259,7 +275,7 @@ entirely) and update §7.10 of ARCHITECTURE.md.
 
 Shipped. Right-click on a row number (left or right rail) or column number
 (top or bottom rail) to insert or delete that row/column. Right-click on
-cells stays free for paste-cancel / colour-erase.
+cells stays free for paste-cancel.
 
 **Grow/shrink model** (chose this over the original "fixed-bounds, shift
 contents" idea, after weighing UX): insert grows the grid by 1, delete

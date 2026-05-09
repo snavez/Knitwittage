@@ -517,19 +517,41 @@ function afterDimensionChange() {
 // ----- Rail context menu wiring -----
 
 function onRowRailContext(e) {
-    const target = e.target.closest('.row-number');
-    if (!target || !target.dataset.knittingRow) return;
     e.preventDefault();
+    // Direct hit on a label is the common case; coord-fallback covers the
+    // 1px flex gaps between labels and any padding around the rail.
+    let target = e.target.closest('.row-number');
+    if (!target) target = nearestRailChild(e.currentTarget, e.clientY, 'y');
+    if (!target || !target.dataset.knittingRow) return;
     const knittingRow = parseInt(target.dataset.knittingRow, 10);
     openRailContextMenu(e.clientX, e.clientY, 'row', knittingRow);
 }
 
 function onColRailContext(e) {
-    const target = e.target.closest('.col-number');
-    if (!target || !target.dataset.knittingCol) return;
     e.preventDefault();
+    let target = e.target.closest('.col-number');
+    if (!target) target = nearestRailChild(e.currentTarget, e.clientX, 'x');
+    if (!target || !target.dataset.knittingCol) return;
     const knittingCol = parseInt(target.dataset.knittingCol, 10);
     openRailContextMenu(e.clientX, e.clientY, 'col', knittingCol);
+}
+
+// Find the rail child whose bounding box contains the given coord on the
+// main axis, or the closest one if `coord` falls outside any child (e.g.
+// in a 1px flex gap or in the rail's padding).
+function nearestRailChild(rail, coord, axis) {
+    const labels = rail.querySelectorAll('.row-number, .col-number');
+    let best = null;
+    let bestDist = Infinity;
+    for (const lbl of labels) {
+        const rect = lbl.getBoundingClientRect();
+        const start = axis === 'y' ? rect.top : rect.left;
+        const end = axis === 'y' ? rect.bottom : rect.right;
+        if (coord >= start && coord <= end) return lbl;
+        const dist = Math.min(Math.abs(coord - start), Math.abs(coord - end));
+        if (dist < bestDist) { bestDist = dist; best = lbl; }
+    }
+    return best;
 }
 
 function openRailContextMenu(x, y, kind, knittingNum) {
@@ -713,6 +735,10 @@ function bindEvents() {
 
     // Mouse painting & selection — hit-test via GridView (no more DOM cells).
     container.addEventListener('mousedown', (e) => {
+        // Right- and middle-click are handled exclusively by the contextmenu
+        // listener (paste-cancel). Letting them fall through to paint logic
+        // would mean right-click silently paints the active colour.
+        if (e.button !== 0) return;
         const hit = GridView.cellAt(e.clientX, e.clientY);
         if (!hit) return;
         e.preventDefault();
@@ -827,19 +853,15 @@ function bindEvents() {
         }
     });
 
-    // Right-click: cancel paste-ghost mode if armed (no commit, no erase),
-    // otherwise erase the right-clicked cell's colour. The "no commit" half
-    // matters because mousedown fires before contextmenu — without the
-    // mousedown guard above, right-click would commit AND erase, dropping a
-    // visible hole into the just-pasted block.
+    // Right-click on the chart: cancel paste-ghost mode if armed; otherwise
+    // do nothing (just suppress the browser's native context menu). We used
+    // to also clear the cell's colour here, but that surprised users who
+    // expected right-click to be a "back-out" gesture, not a destructive
+    // one. Toggling the active colour on/off via left-click already covers
+    // the clear-cell case.
     container.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (state.isPasting) { cancelPaste(); return; }
-        const hit = GridView.cellAt(e.clientX, e.clientY);
-        if (!hit) return;
-        state.grid[hit.r][hit.c] = null;
-        updateCellDOM(hit.r, hit.c);
-        pushHistory();
+        if (state.isPasting) cancelPaste();
     });
 
     // Touch support — mirrors the mouse tap/drag logic so a sweep only paints.

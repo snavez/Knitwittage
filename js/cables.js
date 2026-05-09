@@ -160,6 +160,10 @@ function bindStitchEvents() {
     const container = document.getElementById('grid-container');
 
     container.addEventListener('mousedown', (e) => {
+        // Right/middle-click is handled by the contextmenu listener — never
+        // by the stitch placer. Without this guard right-click would silently
+        // toggle a stitch (since toggle now mirrors the colour behaviour).
+        if (e.button !== 0) return;
         // Erase toggles take priority over stitch placement — let app.js
         // (bubble phase) handle the click as an erase action.
         if (state.eraseStitch || state.eraseColour) return;
@@ -173,6 +177,11 @@ function bindStitchEvents() {
             e.stopPropagation();
             applySimpleStitch(r, c);
             state.isPainting = true;
+            // Track start cell for drag-vs-click detection — mirrors the
+            // colour-paint pattern in app.js so a drag promotes to additive
+            // and (if the initial click toggled-off) repairs the start cell.
+            state.paintStartCell = { r, c };
+            state.paintDragged = false;
             return;
         }
 
@@ -195,7 +204,19 @@ function bindStitchEvents() {
         const r = hit.r, c = hit.c;
 
         if (StitchRegistry.isPaintable(state.activeStitch) && state.isPainting) {
-            applySimpleStitch(r, c);
+            const start = state.paintStartCell;
+            // Still on the start cell — initial click already handled it.
+            if (start && r === start.r && c === start.c) return;
+            // First move away → drag mode. Promote to additive and, if the
+            // initial click toggled the start cell off, restore it (a drag
+            // stroke should always paint).
+            if (!state.paintDragged && start) {
+                state.paintDragged = true;
+                if (state.stitchGrid[start.r][start.c] !== state.activeStitch) {
+                    applySimpleStitch(start.r, start.c, { additive: true });
+                }
+            }
+            applySimpleStitch(r, c, { additive: true });
             return;
         }
 
@@ -256,8 +277,12 @@ function isCrossStitch(stitch) {
 // ========================================
 // SIMPLE STITCH PLACEMENT
 // ========================================
-function applySimpleStitch(r, c) {
+// `additive`: when true, never toggle off — only set the cell to the active
+// stitch. Matches paintCellAdditive(): mousedown toggles, drag-stroke is
+// always additive so sweeping across already-painted cells doesn't flicker.
+function applySimpleStitch(r, c, opts) {
     if (!state.stitchGrid[r]) return;
+    const additive = !!(opts && opts.additive);
 
     if (state.activeStitch === 'stitch-erase') {
         // If clicking on a crossing, erase the whole group
@@ -304,9 +329,15 @@ function applySimpleStitch(r, c) {
                     state.stitchGrid[r][cc] = null;
                 }
             }
+            state.stitchGrid[r][c] = state.activeStitch;
+        } else if (!additive && existing === state.activeStitch) {
+            // Toggle: clicking on a cell that already has the active stitch
+            // clears it. Mirrors the colour-toggle behaviour in paintCell.
+            state.stitchGrid[r][c] = null;
+        } else {
+            // Registry ids are what we store in the grid verbatim.
+            state.stitchGrid[r][c] = state.activeStitch;
         }
-        // Registry ids are what we store in the grid verbatim.
-        state.stitchGrid[r][c] = state.activeStitch;
     }
     renderStitchOverlay();
 }
