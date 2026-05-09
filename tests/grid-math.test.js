@@ -12,6 +12,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const {
     labelStride,
+    rowLabelStride,
     maxZoomForGridSize,
     effectiveMaxHistoryFor,
     computePullToCentreScroll,
@@ -55,6 +56,39 @@ describe('labelStride', () => {
         // cellPx = round(22 * 0.29) = 6. Pre-fix this returned 10 (even).
         const stride = labelStride(6, 1000);
         expect(stride).toBe(9); // odd — both rails populate
+    });
+});
+
+describe('rowLabelStride', () => {
+    test('every row labelled at usable cell sizes', () => {
+        // The whole point of this function: rows stack vertically, so digit
+        // count is irrelevant. Anything ≥ 14px tall fits a label.
+        expect(rowLabelStride(14)).toBe(1);
+        expect(rowLabelStride(16)).toBe(1);
+        expect(rowLabelStride(22)).toBe(1);
+    });
+
+    test('1000-row grid at max zoom still gets stride 1', () => {
+        // Regression check: this is the case that motivated the function.
+        // maxZoomForGridSize(1000, 1000) ≈ 0.727 → cellPx ≈ 16.
+        // The old width-based labelStride(16, 1000) returned 3.
+        const z = maxZoomForGridSize(1000, 1000);
+        const cellPx = Math.round(GRID_CELL_BASE * z);
+        expect(rowLabelStride(cellPx)).toBe(1);
+    });
+
+    test('strides up at very small cell sizes', () => {
+        expect(rowLabelStride(7)).toBe(3);
+        expect(rowLabelStride(5)).toBe(3);
+        expect(rowLabelStride(3)).toBe(5);
+        expect(rowLabelStride(1)).toBe(9);
+    });
+
+    test('returns odd values only — flat-mode rail parity invariant', () => {
+        for (const cellPx of [1, 2, 3, 5, 7, 10, 14, 20, 30]) {
+            const s = rowLabelStride(cellPx);
+            expect(s % 2 === 1, `cellPx=${cellPx} stride=${s}`).toBe(true);
+        }
     });
 });
 

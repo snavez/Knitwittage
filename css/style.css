@@ -2584,6 +2584,16 @@ body.knit-active .workbench {
 .stitch-context-menu button:hover { background: var(--surface-hover); }
 .stitch-context-menu button.danger { color: var(--danger); }
 .stitch-context-menu button.danger:hover { background: var(--accent-soft); }
+.rail-context-target {
+    padding: 6px 14px 4px;
+    font-family: var(--sans);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
 
 /* === Responsive === */
 @media (max-width: 768px) {

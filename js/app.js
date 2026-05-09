@@ -247,10 +247,13 @@ function renderNumbers() {
     if (colNumsBot) colNumsBot.innerHTML = '';
 
     const cellPx = (typeof GridView !== 'undefined') ? GridView.getCellSize() : 22;
-    // Strides are per-axis because digit counts differ — a 1000×30 chart has
-    // 4-digit row numbers but 2-digit col numbers, and they collide at
-    // different cell sizes.
-    const rowStride = labelStride(cellPx, state.rows);
+    // Row labels are stacked vertically in a single-column rail; the
+    // constraint is cell HEIGHT, not digit count. rowLabelStride uses a
+    // flat ~14px requirement, so most usable zoom levels get stride 1
+    // — important for #17's right-click-to-insert/delete being usable
+    // on any visible row. Cols still use the width-based labelStride
+    // because col labels share horizontal space and digit count matters.
+    const rowStride = rowLabelStride(cellPx);
     const colStride = labelStride(cellPx, state.cols);
 
     function makeArrow(arrow) {
@@ -542,6 +545,8 @@ function openRailContextMenu(x, y, kind, knittingNum) {
 
     menu.dataset.kind = kind;
     menu.dataset.knittingNum = String(knittingNum);
+    const targetEl = document.getElementById('rail-context-target');
+    if (targetEl) targetEl.textContent = (kind === 'row' ? 'Row ' : 'Column ') + knittingNum;
     menu.style.display = 'flex';
     menu.style.left = `${x}px`;
     menu.style.top = `${y}px`;

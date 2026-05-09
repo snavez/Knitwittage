@@ -49,6 +49,24 @@ function labelStride(cellPx, totalCells) {
     return s;
 }
 
+// Stride for ROW labels specifically. Rows stack vertically in a single-
+// column rail, so the constraint is cell HEIGHT, not the digit count. A
+// row label needs ~14px vertical to be readable. This is much more
+// lenient than the width-based labelStride (which assumes 4-digit row
+// labels need ~34px), so even a 1000-row grid at max zoom (cellPx ≈ 16)
+// gets stride 1 — every row is labelled, which makes #17's right-click
+// insert/delete usable on every row.
+//
+// Returns odd values (1, 3, 5, 9, …) to preserve the §7.13 parity
+// invariant — flat-RS row coloring needs both rails populated.
+function rowLabelStride(cellPx) {
+    const ROW_LABEL_PX = 14;
+    if (cellPx >= ROW_LABEL_PX)        return 1;
+    if (cellPx * 3 >= ROW_LABEL_PX)    return 3;
+    if (cellPx * 5 >= ROW_LABEL_PX)    return 5;
+    return 9;
+}
+
 // Maximum zoom for a given grid size that keeps the canvas under
 // GRID_CANVAS_LIMIT_PX on its larger axis. Below this and the canvas would
 // silently fail to draw on Safari/iOS (the white-out bug).
@@ -147,6 +165,7 @@ if (typeof module !== 'undefined' && module.exports) {
         GRID_CELL_BASE, GRID_GAP_PX, GRID_CANVAS_LIMIT_PX,
         GRID_HISTORY_BASE, GRID_HISTORY_MIN, GRID_HISTORY_TARGET_MEM_CELLS,
         labelStride,
+        rowLabelStride,
         maxZoomForGridSize,
         effectiveMaxHistoryFor,
         computePullToCentreScroll,
