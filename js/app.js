@@ -1311,17 +1311,16 @@ const ZOOM_MIN = 0.1;   // ~2px cells — lets a 1000×1000 chart fit a laptop s
 // because of the browser canvas-size limit.
 const ZOOM_MAX = 1.0;
 const ZOOM_STEP = 1.15;
-// Browsers cap a single canvas's largest dimension somewhere around 16 384px
-// (Safari/iOS in particular). Past that, the canvas silently fails to draw —
-// the symptom is a white-out at the zoom level that pushes total chart width
-// past the limit. Cap the effective zoom dynamically based on grid size so we
-// never produce a canvas that big.
-// Pure-math helper lives in js/grid-math.js as maxZoomForGridSize().
-// This wrapper plugs in the current state and clamps to the app's
-// ZOOM_MIN/MAX; tests exercise the pure version directly.
+// Historical: when canvases were sized to the WHOLE chart, big grids needed
+// a smaller max zoom so the resulting canvas didn't exceed the browser's
+// per-canvas size limit (~16 384px on Safari/iOS) or blow up the GPU. Since
+// switching to viewport rendering (ARCHITECTURE §7.10), the canvas is always
+// viewport-sized regardless of zoom — so every grid can reach the same
+// ZOOM_MAX as a 20×20 grid. The pure-math helper lives in grid-math.js
+// (`maxZoomForGridSize`) and stays as a safety net + test target, but the
+// app no longer uses it for the live cap.
 function maxZoomForCurrentGrid() {
-    const z = maxZoomForGridSize(state.rows, state.cols);
-    return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
+    return ZOOM_MAX;
 }
 
 function setZoom(newZoom, anchorClientX, anchorClientY) {

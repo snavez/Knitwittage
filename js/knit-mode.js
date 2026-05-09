@@ -190,18 +190,33 @@ function highlightKnitRow(kRow) {
     // Full-width red highlight bar that extends past the grid edges
     positionKnitRowBar(gridRow);
 
-    // Scroll the row into view — compute the row's position from GridView
-    // and scroll the canvas-area so it sits near the middle of the viewport.
+    // Scroll the row into view — vertically centre the row, AND scroll
+    // horizontally so the side where the row starts is visible (the
+    // knitter wants to see where they pick up the needle, not the
+    // far-end finish).
+    //   RS rows are knitted right→left, so they start at knitting col 1
+    //   = chart's rightmost cell → scroll all the way right.
+    //   WS rows go left→right, so they start at the leftmost cell →
+    //   scroll all the way left.
+    //   Round mode is always RS-style (right→left).
     const container = document.getElementById('grid-container');
     const canvasArea = document.querySelector('.canvas-area');
     if (container && canvasArea) {
         const bounds = GridView.cellBoundsWrapper(gridRow, 0);
         const containerRect = container.getBoundingClientRect();
         const areaRect = canvasArea.getBoundingClientRect();
-        // Absolute y of the row's top, relative to canvas-area viewport
         const rowTop = (containerRect.top - areaRect.top) + bounds.y + canvasArea.scrollTop;
-        const target = rowTop - (canvasArea.clientHeight / 2) + (bounds.h / 2);
-        canvasArea.scrollTo({ top: target, behavior: 'smooth' });
+        const targetTop = rowTop - (canvasArea.clientHeight / 2) + (bounds.h / 2);
+
+        const isRS = state.knittingMode === 'round'
+            ? true
+            : ((state.firstRow === 'RS') ? (kRow % 2 === 1) : (kRow % 2 === 0));
+        const startsRight = isRS;
+        const targetLeft = startsRight
+            ? Math.max(0, canvasArea.scrollWidth - canvasArea.clientWidth)
+            : 0;
+
+        canvasArea.scrollTo({ top: targetTop, left: targetLeft, behavior: 'smooth' });
     }
 }
 

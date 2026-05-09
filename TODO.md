@@ -13,6 +13,35 @@ carry rendering smarts (cluster detection, echoes, drag-placement) that a user-e
 icon would break. Possible compromise: editable for simple stitches, locked for cross-
 type. Park until someone actually asks.
 
+### 32. Repaint gaps after fast scroll/zoom (aesthetic polish)
+
+After viewport rendering shipped, fast scrolls and zoom changes occasionally
+leave a brief slice of unpainted area at the moving edge — the canvas
+hasn't yet caught up with the scroll position. The container background
+is now `--surface` so the user sees cream that blends with the empty
+cell colour (instead of the jarring brown frame we had before), but the
+gridlines in that strip are missing for one frame, which a sharp eye
+notices.
+
+Possible fixes (probably in order of effort):
+
+- **Paint pre-emptively on scroll start** — use a `pointerdown`-driven
+  "I'm about to scroll" hook to paint the canvas with a slightly larger
+  margin on the side the user is about to scroll toward. Cheap if the
+  hint is reliable.
+- **Increase the cached margin further** when the chart is bigger than
+  the viewport (currently 256px on each side). Memory cost is negligible.
+- **Switch from JS-driven `top`/`left` to `position: sticky`** — let the
+  browser handle keeping the canvas in view; we only repaint on scroll.
+  Eliminates the 1-frame lag entirely. Some sticky semantics gotchas
+  to design around.
+- **Use `transform: translate3d`** instead of top/left — composited on
+  the GPU, so position updates land in the same frame as scroll.
+
+Lives in [js/grid-view.js](js/grid-view.js) (`setScrollOffset`,
+`computeViewportSize`) and [js/cables.js](js/cables.js)
+(`renderStitchOverlay`).
+
 ### ~~30. Stop right-click from clearing cell colour~~ ✓
 
 Shipped. Right-click on the chart no longer destroys the cell's colour;
