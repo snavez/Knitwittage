@@ -625,29 +625,49 @@ or you'll wipe the user's custom stitches.
 project's palette. Adding a new built-in stitch? Decide whether it should
 be in the default palette or hidden (user enables it via gallery).
 
-### 7.10 Canvas size limit at large grids
+### 7.10 Viewport-based rendering
 
-`GRID_CANVAS_LIMIT_PX` in `grid-math.js` caps the largest canvas
-dimension. The current value is **12,000** — chosen so 3 stacked canvases
-(base + overlay in GridView, plus the stitch-overlay sibling) total
-under ~1.7GB of GPU memory at peak (each canvas is 4 bytes/pixel ×
-12000² ≈ 575MB). Safari/iOS caps a single canvas at ~16,384px, but the
-real bottleneck on Windows is GPU memory, not the per-canvas dimension.
+Each canvas is sized to the **viewport** (the visible portion of the
+chart), not to the whole chart. At 1000×1000 the chart wants a
+22 000-pixel-square paintable area; allocating that as canvas memory
+would burn ~1GB per canvas × 3 canvases = ~3GB of GPU. Viewport
+rendering keeps the canvases at ~viewport-clientSize regardless of
+grid dimensions, so total GPU footprint stays around **15MB** even
+at 1000×1000.
 
-`maxZoomForCurrentGrid()` in [js/app.js](js/app.js) translates this
-limit into a max zoom; `setZoom` clamps every incoming zoom request.
+How it fits together:
 
-**Resize-time release** (`ensureLayers` in
-[js/grid-view.js](js/grid-view.js) and `renderStitchOverlay` in
-[js/cables.js](js/cables.js)) zeros each canvas's dimensions to 0×0
-*before* asking for the new size. Without that, going from one big
-grid to another (e.g. 800×800 → 900×900) made the browser hold both
-buffers in GPU memory simultaneously — peak ~5.8GB at the old 16k
-limit — and OOM'd mid-range GPUs. The size=0 step releases the old
-buffer first, capping peak at ~1.7GB.
+- `#grid-container` stays sized to the chart — provides the scroll
+  extent and the `getBoundingClientRect()` reference that
+  `cellAt(clientX, clientY)` uses to translate mouse coords into
+  chart cells without thinking about scroll.
+- The base + overlay canvases inside `#grid-container` are sized to
+  the viewport (`computeViewportSize()` in
+  [js/grid-view.js](js/grid-view.js)). They sit at
+  `top: scrollY; left: scrollX` so they always cover the part of the
+  chart currently in view.
+- `#stitch-overlay` (sibling of `#grid-container`) follows the same
+  pattern — sized to viewport, positioned to follow scroll. Logic in
+  `renderStitchOverlay()` ([js/cables.js](js/cables.js)).
+- `app.js`'s `bindEvents()` registers a scroll listener on
+  `.canvas-area` that calls `GridView.setScrollOffset()` and triggers
+  a `renderStitchOverlay()`. `setScrollOffset` repositions the canvases
+  and schedules a repaint via `requestAnimationFrame` so successive
+  scroll events coalesce into one paint per frame.
+- `redrawAll()` only iterates cells in the visible chart-cell range
+  (`visibleRange()`) — sub-millisecond paint even at 1000×1000.
 
-If you ever switch to multi-canvas tiling (#16b), this cap can be
-relaxed and the per-buffer size becomes a non-issue.
+Fixed DOM overlays (`#selection-box`, `#knit-row-bar`) still live in
+`.grid-canvas-wrapper` (chart-sized) and use `cellBoundsWrapper()`
+which returns chart-relative coords. They scroll naturally with the
+browser, so no special handling needed.
+
+`GRID_CANVAS_LIMIT_PX` in `grid-math.js` (currently 12 000) is now
+mostly historical — it bounds the per-canvas dimension as a safety
+net, but in practice viewport rendering keeps the canvases far below
+that. `maxZoomForCurrentGrid()` still clamps zoom to the limit so the
+canvas can never exceed it. If you ever need to lift the 1000-cell
+grid cap, this section is no longer the bottleneck.
 
 ### 7.11 Adaptive history cap (`effectiveMaxHistory`)
 

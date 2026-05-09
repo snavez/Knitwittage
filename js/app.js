@@ -733,6 +733,20 @@ function floodFill(row, col, targetColor, fillColor) {
 function bindEvents() {
     const container = document.getElementById('grid-container');
 
+    // Scroll → viewport repaint. The canvases are viewport-sized (not
+    // chart-sized); as the user scrolls .canvas-area we reposition the
+    // canvases to follow and repaint them with the cells now in view.
+    // GridView coalesces successive scrolls into one paint per frame.
+    const canvasArea = document.querySelector('.canvas-area');
+    if (canvasArea) {
+        canvasArea.addEventListener('scroll', () => {
+            GridView.setScrollOffset(canvasArea.scrollLeft, canvasArea.scrollTop);
+            // Stitch overlay tracks the same offset; reposition + repaint
+            // via the existing renderStitchOverlay path.
+            if (typeof renderStitchOverlay === 'function') renderStitchOverlay();
+        }, { passive: true });
+    }
+
     // Mouse painting & selection — hit-test via GridView (no more DOM cells).
     container.addEventListener('mousedown', (e) => {
         // Right- and middle-click are handled exclusively by the contextmenu

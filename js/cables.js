@@ -607,46 +607,62 @@ function renderStitchOverlay() {
     const container = document.getElementById('grid-container');
     if (!container) return;
 
-    // Pull dimensions from GridView instead of reading DOM cells (there
-    // are none anymore — the grid is canvas-backed).
+    // Viewport-rendering: canvas is sized to the visible window, not to
+    // the whole chart. Mirrors what GridView does for the base + overlay
+    // canvases — see ARCHITECTURE §7.10. Pulls scroll offset from
+    // .canvas-area so it always covers the part of the chart in view.
     const cellSize = GridView.getCellSize();
     const gap = GridView.getGap();
-    const gridW = container.clientWidth;
-    const gridH = container.clientHeight;
-    if (!gridW || !gridH) return;
+    const stepX = cellSize + gap;
+    const stepY = cellSize + gap;
+    const chartW = container.clientWidth;
+    const chartH = container.clientHeight;
+    if (!chartW || !chartH) return;
 
+    const canvasArea = document.querySelector('.canvas-area');
+    const scrollX = canvasArea ? canvasArea.scrollLeft : 0;
+    const scrollY = canvasArea ? canvasArea.scrollTop : 0;
     const balanceMargin = 24; // extra space for row balance indicators
-    const newW = gridW + balanceMargin;
-    const newH = gridH;
+    const margin = 64;
+    const newW = canvasArea
+        ? Math.min(chartW + balanceMargin, canvasArea.clientWidth + margin + balanceMargin)
+        : chartW + balanceMargin;
+    const newH = canvasArea
+        ? Math.min(chartH, canvasArea.clientHeight + margin)
+        : chartH;
     if (canvas.width !== newW || canvas.height !== newH) {
-        // Release the old GPU buffer first — see grid-view.js ensureLayers
-        // for the rationale (transient old+new overlap OOMs the GPU on
-        // big-grid resizes).
+        // Release the old GPU buffer first — see grid-view.js ensureLayers.
         canvas.width = 0; canvas.height = 0;
     }
     canvas.width = newW;
     canvas.height = newH;
     canvas.style.width = newW + 'px';
     canvas.style.height = newH + 'px';
+    canvas.style.left = scrollX + 'px';
+    canvas.style.top = scrollY + 'px';
 
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const cellW = cellSize;
     const cellH = cellSize;
-    const stepX = cellW + gap;
-    const stepY = cellH + gap;
+
+    // Visible chart-cell range (translated from scroll offset + viewport).
+    const c0 = Math.max(0, Math.floor(scrollX / stepX));
+    const r0 = Math.max(0, Math.floor(scrollY / stepY));
+    const c1 = Math.min(state.cols, Math.ceil((scrollX + newW) / stepX));
+    const r1 = Math.min(state.rows, Math.ceil((scrollY + newH) / stepY));
 
     const drawnCrossings = new Set();
 
-    for (let r = 0; r < state.rows; r++) {
+    for (let r = r0; r < r1; r++) {
         if (!state.stitchGrid[r]) continue;
-        for (let c = 0; c < state.cols; c++) {
+        for (let c = c0; c < c1; c++) {
             const stitch = state.stitchGrid[r][c];
             if (!stitch) continue;
 
-            const x = c * stepX;
-            const y = r * stepY;
+            const x = c * stepX - scrollX;
+            const y = r * stepY - scrollY;
 
             if (typeof stitch === 'object') {
                 if (stitch.type === 'user-multi') {
@@ -658,7 +674,7 @@ function renderStitchOverlay() {
                         if (def && typeof def.drawCell === 'function') {
                             const startCol = c - stitch.pos;
                             for (let p = 0; p < stitch.width; p++) {
-                                const cellX = (startCol + p) * stepX;
+                                const cellX = (startCol + p) * stepX - scrollX;
                                 ctx.save();
                                 if (p !== stitch.lead) ctx.globalAlpha = 0.18;
                                 def.drawCell(ctx, cellX, y, cellW, cellH);
@@ -669,7 +685,7 @@ function renderStitchOverlay() {
                 } else if (!drawnCrossings.has(stitch.id)) {
                     // Cluster-aware crossing
                     drawnCrossings.add(stitch.id);
-                    const startX = (c - stitch.pos) * stepX;
+                    const startX = (c - stitch.pos) * stepX - scrollX;
                     drawCrossingOverlay(ctx, startX, y, cellW, cellH, stitch, gap);
                 }
             } else {

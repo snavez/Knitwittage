@@ -251,41 +251,34 @@ to a per-row array and hash from there.
 
 ## Bigger features
 
-### 16b. Canvas tiling for big grids
+### ~~16b. Canvas tiling for big grids~~ ✓ (replaced by viewport rendering)
 
-`GridView` paints onto two `<canvas>` elements (base + overlay), and
-the stitch-overlay is a third. At any single canvas dimension, GPU
-memory = width × height × 4 bytes × 3 canvases. `GRID_CANVAS_LIMIT_PX`
-is currently **12000** — chosen so the per-canvas peak stays around
-575MB (total ~1.7GB) which most laptop GPUs handle.
+Originally proposed: split each canvas layer into smaller tiles to
+work around the per-canvas GPU memory limit. **Superseded** by viewport
+rendering, which is structurally cleaner: each canvas is sized to the
+visible window (~12MB per canvas regardless of grid size), and only
+visible cells are painted.
 
-Was 16000 until a user hit a catastrophic GPU OOM at 900×900. Two
-issues compounded:
+Total GPU went from ~1.7GB at 1000×1000 to **~15MB** — about 120×
+reduction, and constant regardless of how big the grid grows.
 
-1. At 16000² × 3 canvases that's ~3GB GPU — already over what mid-range
-   Windows GPUs reliably allocate.
-2. During a resize, the browser held BOTH the old and new canvas
-   buffers in GPU memory simultaneously (canvases reuse the same
-   element; assigning `.width`/`.height` doesn't synchronously free
-   the prior buffer). Going 800→900 peaked at old (~3GB) + new
-   (~2.8GB) = ~5.8GB and crashed.
+Lives in:
+- [js/grid-view.js](js/grid-view.js) — `computeViewportSize()`,
+  `setScrollOffset()`, `visibleRange()`, viewport-aware `redrawAll`,
+  `redrawOverlay`, `drawCell`.
+- [js/cables.js](js/cables.js) — `renderStitchOverlay()` with the same
+  viewport story.
+- [js/app.js](js/app.js) `bindEvents()` — scroll listener on
+  `.canvas-area` that calls `setScrollOffset` and triggers
+  `renderStitchOverlay`.
 
-Mitigations shipped:
-- Lowered cap to 12000 → ~575MB per canvas, 1.7GB total.
-- `ensureLayers` (grid-view.js) and `renderStitchOverlay` (cables.js)
-  now zero each canvas's dimensions to 0×0 BEFORE setting the new size,
-  so the old buffer is released first. Eliminates the transient peak.
+See ARCHITECTURE.md §7.10 for the full picture. Test plan in
+[TESTS-VIEWPORT.md](TESTS-VIEWPORT.md).
 
-These keep grids up to 1000×1000 working safely. The trade-off is
-smaller cell size at full zoom for big grids (cellPx 11 at N=1000
-instead of 15). The real fix is canvas tiling — split each layer into
-a grid of smaller canvases, each well under the per-buffer limit.
-`redrawAll` iterates tiles, `cellAt` translates through tile rect
-math. More bookkeeping, more state in `GridView`, but 1000×1000
-reaches 1.0× zoom cleanly and we drop §7.10 as a fragile point.
-
-When tiling lands, raise/remove `GRID_CANVAS_LIMIT_PX`, drop the
-canvas-zeroing trick, and update §7.10 of ARCHITECTURE.md.
+Practical impact: the 1000-cell grid cap is no longer GPU-bound —
+it's now bounded by the JS arrays in `state.grid` / `state.stitchGrid`
+themselves. We could lift the cap meaningfully if a user wants
+(probably 5000×5000 is realistic without tweaks).
 
 ### ~~17. Row & column insert / delete~~ ✓
 
