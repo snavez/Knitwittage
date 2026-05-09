@@ -627,13 +627,27 @@ be in the default palette or hidden (user enables it via gallery).
 
 ### 7.10 Canvas size limit at large grids
 
-Browsers (especially Safari/iOS) cap a single `<canvas>` element's
-largest dimension at ~16,384px. With the grid cap at 1000 cells, that
-meant zoom > ~68% on a 1000×1000 grid produced a canvas wider than the
-limit and the whole canvas silently went white. `maxZoomForCurrentGrid()`
-in [js/app.js](js/app.js) caps zoom dynamically; `setZoom` clamps every
-incoming zoom request through it. If you ever switch to multi-canvas
-tiling, this cap can be relaxed.
+`GRID_CANVAS_LIMIT_PX` in `grid-math.js` caps the largest canvas
+dimension. The current value is **12,000** — chosen so 3 stacked canvases
+(base + overlay in GridView, plus the stitch-overlay sibling) total
+under ~1.7GB of GPU memory at peak (each canvas is 4 bytes/pixel ×
+12000² ≈ 575MB). Safari/iOS caps a single canvas at ~16,384px, but the
+real bottleneck on Windows is GPU memory, not the per-canvas dimension.
+
+`maxZoomForCurrentGrid()` in [js/app.js](js/app.js) translates this
+limit into a max zoom; `setZoom` clamps every incoming zoom request.
+
+**Resize-time release** (`ensureLayers` in
+[js/grid-view.js](js/grid-view.js) and `renderStitchOverlay` in
+[js/cables.js](js/cables.js)) zeros each canvas's dimensions to 0×0
+*before* asking for the new size. Without that, going from one big
+grid to another (e.g. 800×800 → 900×900) made the browser hold both
+buffers in GPU memory simultaneously — peak ~5.8GB at the old 16k
+limit — and OOM'd mid-range GPUs. The size=0 step releases the old
+buffer first, capping peak at ~1.7GB.
+
+If you ever switch to multi-canvas tiling (#16b), this cap can be
+relaxed and the per-buffer size becomes a non-issue.
 
 ### 7.11 Adaptive history cap (`effectiveMaxHistory`)
 

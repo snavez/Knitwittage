@@ -104,9 +104,10 @@ describe('maxZoomForGridSize', () => {
     test('small grids reach a high zoom (no canvas-size pressure)', () => {
         // 20×20 at zoom 1 = 440px canvas — far below the limit. Pure helper
         // doesn't apply ZOOM_MAX (that's the app's job); it returns the raw
-        // canvas-bounded ceiling.
+        // canvas-bounded ceiling. Threshold scales with the canvas cap;
+        // 25 holds for both the 16000 and 12000 limits we've shipped.
         const z = maxZoomForGridSize(20, 20);
-        expect(z).toBeGreaterThan(30); // way above app's ZOOM_MAX of 1.0
+        expect(z).toBeGreaterThan(25); // way above app's ZOOM_MAX of 1.0
     });
 
     test('symmetric in rows/cols — uses larger axis', () => {

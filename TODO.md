@@ -253,23 +253,39 @@ to a per-row array and hash from there.
 
 ### 16b. Canvas tiling for big grids
 
-`GridView` paints a single `<canvas>` element. Browsers cap one canvas
-dimension at ~16 384px (Safari/iOS) and even where the dimension cap is
-higher (Chrome desktop = 32 767px), GPU memory becomes the bottleneck —
-at 22 000² that's ~1.94GB per canvas, which mid-range Windows GPUs
-white-out on. Currently `GRID_CANVAS_LIMIT_PX = 16000`, which means
-1000×1000 grids top out at ~0.68× zoom (cells ~15px) instead of the 1.0×
-cap that smaller grids reach.
+`GridView` paints onto two `<canvas>` elements (base + overlay), and
+the stitch-overlay is a third. At any single canvas dimension, GPU
+memory = width × height × 4 bytes × 3 canvases. `GRID_CANVAS_LIMIT_PX`
+is currently **12000** — chosen so the per-canvas peak stays around
+575MB (total ~1.7GB) which most laptop GPUs handle.
 
-The fix: split the chart across a grid of smaller canvas tiles, each
-under the per-canvas limit. The `redrawAll` loop iterates tiles instead
-of one canvas; `cellAt(clientX, clientY)` translates through tile rect
-math. Trade-off: more bookkeeping, more state in `GridView`, but
-1000×1000 reaches 1.0× zoom cleanly and we lose the canvas-size cap as a
-fragile point (§7.10).
+Was 16000 until a user hit a catastrophic GPU OOM at 900×900. Two
+issues compounded:
 
-When this lands, also bump `GRID_CANVAS_LIMIT_PX` (or remove it
-entirely) and update §7.10 of ARCHITECTURE.md.
+1. At 16000² × 3 canvases that's ~3GB GPU — already over what mid-range
+   Windows GPUs reliably allocate.
+2. During a resize, the browser held BOTH the old and new canvas
+   buffers in GPU memory simultaneously (canvases reuse the same
+   element; assigning `.width`/`.height` doesn't synchronously free
+   the prior buffer). Going 800→900 peaked at old (~3GB) + new
+   (~2.8GB) = ~5.8GB and crashed.
+
+Mitigations shipped:
+- Lowered cap to 12000 → ~575MB per canvas, 1.7GB total.
+- `ensureLayers` (grid-view.js) and `renderStitchOverlay` (cables.js)
+  now zero each canvas's dimensions to 0×0 BEFORE setting the new size,
+  so the old buffer is released first. Eliminates the transient peak.
+
+These keep grids up to 1000×1000 working safely. The trade-off is
+smaller cell size at full zoom for big grids (cellPx 11 at N=1000
+instead of 15). The real fix is canvas tiling — split each layer into
+a grid of smaller canvases, each well under the per-buffer limit.
+`redrawAll` iterates tiles, `cellAt` translates through tile rect
+math. More bookkeeping, more state in `GridView`, but 1000×1000
+reaches 1.0× zoom cleanly and we drop §7.10 as a fragile point.
+
+When tiling lands, raise/remove `GRID_CANVAS_LIMIT_PX`, drop the
+canvas-zeroing trick, and update §7.10 of ARCHITECTURE.md.
 
 ### ~~17. Row & column insert / delete~~ ✓
 

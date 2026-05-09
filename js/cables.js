@@ -616,10 +616,18 @@ function renderStitchOverlay() {
     if (!gridW || !gridH) return;
 
     const balanceMargin = 24; // extra space for row balance indicators
-    canvas.width = gridW + balanceMargin;
-    canvas.height = gridH;
-    canvas.style.width = (gridW + balanceMargin) + 'px';
-    canvas.style.height = gridH + 'px';
+    const newW = gridW + balanceMargin;
+    const newH = gridH;
+    if (canvas.width !== newW || canvas.height !== newH) {
+        // Release the old GPU buffer first — see grid-view.js ensureLayers
+        // for the rationale (transient old+new overlap OOMs the GPU on
+        // big-grid resizes).
+        canvas.width = 0; canvas.height = 0;
+    }
+    canvas.width = newW;
+    canvas.height = newH;
+    canvas.style.width = newW + 'px';
+    canvas.style.height = newH + 'px';
 
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);

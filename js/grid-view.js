@@ -112,6 +112,15 @@ const GridView = (function () {
         container.style.height = h + 'px';
 
         if (baseCanvas.width !== w || baseCanvas.height !== h) {
+            // Free the old GPU buffer BEFORE asking for a new one. Without
+            // this, going from one big size to another (e.g. 800×800 →
+            // 900×900) makes the browser hold both the old and new buffers
+            // in GPU memory simultaneously — at ~1GB each per canvas × 3
+            // canvases that crashes mid-range GPUs. Setting width=0 forces
+            // the backing buffer to be released; then we allocate the new
+            // one fresh.
+            baseCanvas.width = 0;  baseCanvas.height = 0;
+            overlayCanvas.width = 0;  overlayCanvas.height = 0;
             baseCanvas.width = w;  baseCanvas.height = h;
             baseCanvas.style.width = w + 'px';
             baseCanvas.style.height = h + 'px';

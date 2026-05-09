@@ -23,7 +23,15 @@
 //                         scaled down for big grids by effectiveMaxHistory.
 const GRID_CELL_BASE = 22;
 const GRID_GAP_PX = 1;
-const GRID_CANVAS_LIMIT_PX = 16000;
+// Canvas dimension cap. Two stacked GridView canvases plus the stitch-
+// overlay = 3 canvases, each width × height × 4 bytes (RGBA). At
+// limit=12000, each canvas peaks at ~575MB, total ~1.7GB across the
+// three — comfortable on most laptop GPUs. Was 16000 (≈3GB total),
+// which OOM'd mid-range Windows GPUs at 900×900 grids especially during
+// a resize when the old buffer hadn't been freed before the new one
+// allocated. Real fix is canvas tiling (#16b); this just keeps the
+// per-canvas footprint inside what one GPU allocation can serve.
+const GRID_CANVAS_LIMIT_PX = 12000;
 const GRID_HISTORY_BASE = 50;
 const GRID_HISTORY_MIN = 5;
 const GRID_HISTORY_TARGET_MEM_CELLS = 3_000_000;
@@ -60,7 +68,11 @@ function labelStride(cellPx, totalCells) {
 // Returns odd values (1, 3, 5, 9, …) to preserve the §7.13 parity
 // invariant — flat-RS row coloring needs both rails populated.
 function rowLabelStride(cellPx) {
-    const ROW_LABEL_PX = 14;
+    // 11px because that's the smallest cellPx 1000-row grids reach at our
+    // canvas cap (limit / N → cellPx 11 at N=1000, limit=12000). Going
+    // any higher would re-introduce stride 3 on the biggest grids and
+    // re-break #17's right-click insert/delete on every row.
+    const ROW_LABEL_PX = 11;
     if (cellPx >= ROW_LABEL_PX)        return 1;
     if (cellPx * 3 >= ROW_LABEL_PX)    return 3;
     if (cellPx * 5 >= ROW_LABEL_PX)    return 5;
