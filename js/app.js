@@ -1332,19 +1332,19 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     if (Math.abs(newZoom - oldZoom) < 0.001) return;
 
     const canvasArea = document.querySelector('.canvas-area');
-    const baseCanvas = document.querySelector('.grid-base-canvas');
+    // Container is sized to the chart and moves with browser scroll, so
+    // `clientX - container.rect.left` gives the cursor's chart-pixel
+    // offset directly — the right input for the pull-to-centre math.
+    // The base canvas used to be chart-sized too, so we used it; now
+    // it's viewport-sized (sliding under the chart with transform), and
+    // its rect.left is the viewport-left, not the chart-left.
+    const container = document.getElementById('grid-container');
 
-    // Pre-zoom: capture the position of the cursor in CHART CANVAS coords
-    // (not wrap coords). The wrapper includes the grid-wrapper padding and
-    // the label rails, neither of which scale with zoom — only the chart
-    // canvas itself does. Scaling wrap-rel coords by the zoom ratio
-    // overshoots by ~labelOffset × (ratio − 1), which compounds across
-    // multiple zoom steps and produced the cursor-region oscillation.
     let chartX = null, chartY = null, oldCellPx = 22;
-    if (canvasArea && baseCanvas && anchorClientX != null) {
-        const canvasRect = baseCanvas.getBoundingClientRect();
-        chartX = anchorClientX - canvasRect.left;
-        chartY = anchorClientY - canvasRect.top;
+    if (canvasArea && container && anchorClientX != null) {
+        const containerRect = container.getBoundingClientRect();
+        chartX = anchorClientX - containerRect.left;
+        chartY = anchorClientY - containerRect.top;
         oldCellPx = (typeof GridView !== 'undefined' && GridView.getCellSize)
             ? GridView.getCellSize() : (22 * oldZoom);
     }
@@ -1362,16 +1362,16 @@ function setZoom(newZoom, anchorClientX, anchorClientY) {
     // Pull-to-centre: delegate scroll-delta math to grid-math.js's pure
     // computePullToCentreScroll() — see that helper's comment for why we
     // scale by chart-WIDTH ratio (not cellPx ratio).
-    if (canvasArea && baseCanvas && chartX != null) {
-        const newCanvasRect = baseCanvas.getBoundingClientRect();
+    if (canvasArea && container && chartX != null) {
+        const newContainerRect = container.getBoundingClientRect();
         const newAreaRect = canvasArea.getBoundingClientRect();
         const newCellPx = (typeof GridView !== 'undefined' && GridView.getCellSize)
             ? GridView.getCellSize() : (22 * newZoom);
         const { scrollDeltaX, scrollDeltaY } = computePullToCentreScroll({
             chartX, chartY, oldCellPx, newCellPx,
             cols: state.cols, rows: state.rows,
-            canvasLeftAfter: newCanvasRect.left,
-            canvasTopAfter: newCanvasRect.top,
+            canvasLeftAfter: newContainerRect.left,
+            canvasTopAfter: newContainerRect.top,
             viewportCentreX: newAreaRect.left + newAreaRect.width / 2,
             viewportCentreY: newAreaRect.top + newAreaRect.height / 2,
         });

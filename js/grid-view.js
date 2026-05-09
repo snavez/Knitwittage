@@ -394,9 +394,17 @@ const GridView = (function () {
         cableGhost = null;
         knitActiveRow = null;
         selectionRect = null;
-        // Reset scroll offset on grid init (new chart starts at top-left).
-        scrollX = 0;
-        scrollY = 0;
+        // Sync scroll offset with the actual scroll container. We can't
+        // unconditionally reset to (0, 0) — init() also runs after every
+        // resize / row+col insert / delete, and in those cases the user
+        // is mid-scroll. Resetting GridView's offset to 0 while leaving
+        // canvasArea.scrollLeft/Top untouched paints the canvas at the
+        // chart's top-left while the browser shows the user's scrolled
+        // viewport — net effect, the chart looks blank. Reading the live
+        // scroll position keeps them aligned.
+        const ca = document.querySelector('.canvas-area');
+        scrollX = ca ? ca.scrollLeft : 0;
+        scrollY = ca ? ca.scrollTop : 0;
         ensureLayers();
         redrawAll();
     }
