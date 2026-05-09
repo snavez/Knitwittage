@@ -277,8 +277,10 @@ function renderNumbers() {
 
         const leftEl = document.createElement('div');
         leftEl.className = 'row-number';
+        leftEl.dataset.knittingRow = String(knittingRow);
         const rightEl = document.createElement('div');
         rightEl.className = 'row-number';
+        rightEl.dataset.knittingRow = String(knittingRow);
 
         if (state.knittingMode === 'round') {
             leftEl.classList.add('row-hidden');
@@ -323,15 +325,292 @@ function renderNumbers() {
         const show = showCol(colNumber);
         const top = document.createElement('div');
         top.className = 'col-number';
+        top.dataset.knittingCol = String(colNumber);
         if (show) top.textContent = colNumber;
         else top.classList.add('col-hidden');
         colNumsTop.appendChild(top);
         if (colNumsBot) {
             const bot = document.createElement('div');
             bot.className = 'col-number';
+            bot.dataset.knittingCol = String(colNumber);
             if (show) bot.textContent = colNumber;
             else bot.classList.add('col-hidden');
             colNumsBot.appendChild(bot);
+        }
+    }
+}
+
+// === Row / column insert + delete (#17) ===========================
+// Right-click on a row/col rail label opens the rail context menu.
+// Insert grows the grid by 1 (capped at GRID_MAX = 1000); delete shrinks
+// the grid by 1, with a confirmation prompt if the row/col has any
+// content. Cluster cells (cables, multi-cell user stitches) intersecting
+// a column operation are cleared first to keep cluster integrity (§7.4).
+
+const GRID_MAX = 1000;
+const GRID_MIN = 2;
+
+function makeEmptyRow(cols) {
+    return new Array(cols).fill(null);
+}
+
+function rowHasContent(arrayRow) {
+    if (arrayRow < 0 || arrayRow >= state.rows) return false;
+    for (let c = 0; c < state.cols; c++) {
+        if (state.grid[arrayRow] && state.grid[arrayRow][c]) return true;
+        if (state.stitchGrid[arrayRow] && state.stitchGrid[arrayRow][c]) return true;
+    }
+    return false;
+}
+
+function colHasContent(arrayCol) {
+    if (arrayCol < 0 || arrayCol >= state.cols) return false;
+    for (let r = 0; r < state.rows; r++) {
+        if (state.grid[r] && state.grid[r][arrayCol]) return true;
+        if (state.stitchGrid[r] && state.stitchGrid[r][arrayCol]) return true;
+    }
+    return false;
+}
+
+// True if any row has a cluster cell at the given col (cluster will need
+// clearing on insert/delete to preserve cluster integrity).
+function colIntersectsCluster(arrayCol) {
+    for (let r = 0; r < state.rows; r++) {
+        const cell = state.stitchGrid[r] && state.stitchGrid[r][arrayCol];
+        if (cell && typeof cell === 'object') return true;
+    }
+    return false;
+}
+
+// Knit mode caches per-row data for the current geometry. Any insert/
+// delete invalidates that cache, so exit knit mode the same way the
+// Resize button does.
+function exitKnitModeIfActive(reason) {
+    if (typeof knitState !== 'undefined' && knitState.active && typeof exitKnitMode === 'function') {
+        exitKnitMode();
+        if (typeof showToast === 'function') showToast(`Exited knit mode (${reason})`);
+    }
+}
+
+// Clear any cluster (cable / user-multi) whose cells touch the given
+// column, in every row. Reuses cables.js's helper so cluster-id semantics
+// stay consistent.
+function clearClustersAtCol(arrayCol) {
+    if (typeof clearOverlappedClustersInRow !== 'function') return;
+    for (let r = 0; r < state.rows; r++) {
+        clearOverlappedClustersInRow(r, arrayCol, arrayCol);
+    }
+}
+
+function insertRowAt(arrayIdx) {
+    if (state.rows >= GRID_MAX) {
+        showToast(`Grid already at the ${GRID_MAX}-row maximum.`, { tone: 'error' });
+        return false;
+    }
+    const safeIdx = Math.max(0, Math.min(arrayIdx, state.rows));
+    state.grid.splice(safeIdx, 0, makeEmptyRow(state.cols));
+    state.stitchGrid.splice(safeIdx, 0, makeEmptyRow(state.cols));
+    state.rows += 1;
+    afterDimensionChange();
+    return true;
+}
+
+async function deleteRowAt(arrayIdx) {
+    if (state.rows <= GRID_MIN) {
+        showToast(`Grid is already at the ${GRID_MIN}-row minimum.`, { tone: 'error' });
+        return false;
+    }
+    if (arrayIdx < 0 || arrayIdx >= state.rows) return false;
+    if (rowHasContent(arrayIdx)) {
+        const knittingRow = state.rows - arrayIdx;
+        const choice = await confirmDialog({
+            title: 'Delete row?',
+            message: `Row ${knittingRow} contains stitches or colour. Deleting it removes that content.`,
+            buttons: [
+                { id: 'cancel', label: 'Cancel' },
+                { id: 'delete', label: 'Delete row', kind: 'danger' },
+            ],
+        });
+        if (choice !== 'delete') return false;
+    }
+    state.grid.splice(arrayIdx, 1);
+    state.stitchGrid.splice(arrayIdx, 1);
+    state.rows -= 1;
+    afterDimensionChange();
+    return true;
+}
+
+async function insertColAt(arrayIdx) {
+    if (state.cols >= GRID_MAX) {
+        showToast(`Grid already at the ${GRID_MAX}-column maximum.`, { tone: 'error' });
+        return false;
+    }
+    const safeIdx = Math.max(0, Math.min(arrayIdx, state.cols));
+    // If a cluster spans the insert column, clearing it loses content —
+    // confirm first.
+    if (colIntersectsCluster(safeIdx)) {
+        const choice = await confirmDialog({
+            title: 'Insert column?',
+            message: 'A cable or multi-cell stitch spans this column. Inserting will clear that stitch to keep the chart valid.',
+            buttons: [
+                { id: 'cancel', label: 'Cancel' },
+                { id: 'insert', label: 'Insert anyway', kind: 'primary' },
+            ],
+        });
+        if (choice !== 'insert') return false;
+        clearClustersAtCol(safeIdx);
+    }
+    for (let r = 0; r < state.rows; r++) {
+        state.grid[r].splice(safeIdx, 0, null);
+        state.stitchGrid[r].splice(safeIdx, 0, null);
+    }
+    state.cols += 1;
+    afterDimensionChange();
+    return true;
+}
+
+async function deleteColAt(arrayIdx) {
+    if (state.cols <= GRID_MIN) {
+        showToast(`Grid is already at the ${GRID_MIN}-column minimum.`, { tone: 'error' });
+        return false;
+    }
+    if (arrayIdx < 0 || arrayIdx >= state.cols) return false;
+    if (colHasContent(arrayIdx) || colIntersectsCluster(arrayIdx)) {
+        const knittingCol = state.cols - arrayIdx;
+        const choice = await confirmDialog({
+            title: 'Delete column?',
+            message: `Column ${knittingCol} contains stitches or colour. Deleting it removes that content; any cable or multi-cell stitch crossing the column will be cleared too.`,
+            buttons: [
+                { id: 'cancel', label: 'Cancel' },
+                { id: 'delete', label: 'Delete column', kind: 'danger' },
+            ],
+        });
+        if (choice !== 'delete') return false;
+    }
+    clearClustersAtCol(arrayIdx);
+    for (let r = 0; r < state.rows; r++) {
+        state.grid[r].splice(arrayIdx, 1);
+        state.stitchGrid[r].splice(arrayIdx, 1);
+    }
+    state.cols -= 1;
+    afterDimensionChange();
+    return true;
+}
+
+// Common follow-up after any insert/delete: redraw, refresh sticky rails,
+// update dimension input fields, push to history, and exit knit mode.
+function afterDimensionChange() {
+    exitKnitModeIfActive('grid edited');
+    if (state.selection) clearSelection();
+    if (state.isPasting && typeof cancelPaste === 'function') cancelPaste();
+    const rowsInput = document.getElementById('grid-rows');
+    const colsInput = document.getElementById('grid-cols');
+    if (rowsInput) rowsInput.value = state.rows;
+    if (colsInput) colsInput.value = state.cols;
+    renderGrid();
+    pushHistory();
+}
+
+// ----- Rail context menu wiring -----
+
+function onRowRailContext(e) {
+    const target = e.target.closest('.row-number');
+    if (!target || !target.dataset.knittingRow) return;
+    e.preventDefault();
+    const knittingRow = parseInt(target.dataset.knittingRow, 10);
+    openRailContextMenu(e.clientX, e.clientY, 'row', knittingRow);
+}
+
+function onColRailContext(e) {
+    const target = e.target.closest('.col-number');
+    if (!target || !target.dataset.knittingCol) return;
+    e.preventDefault();
+    const knittingCol = parseInt(target.dataset.knittingCol, 10);
+    openRailContextMenu(e.clientX, e.clientY, 'col', knittingCol);
+}
+
+function openRailContextMenu(x, y, kind, knittingNum) {
+    const menu = document.getElementById('rail-context-menu');
+    if (!menu) return;
+
+    // Show only the buttons relevant to this rail kind.
+    menu.querySelectorAll('button').forEach(btn => {
+        const action = btn.dataset.action;
+        const isRowAction = action.endsWith('row') || action.includes('-row-');
+        btn.style.display = (kind === 'row' ? isRowAction : !isRowAction) ? '' : 'none';
+    });
+
+    menu.dataset.kind = kind;
+    menu.dataset.knittingNum = String(knittingNum);
+    menu.style.display = 'flex';
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${window.innerWidth - rect.width - 8}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${window.innerHeight - rect.height - 8}px`;
+
+    if (!menu.dataset.wired) {
+        menu.dataset.wired = '1';
+        menu.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const action = btn.dataset.action;
+                const num = parseInt(menu.dataset.knittingNum, 10);
+                closeRailContextMenu();
+                handleRailAction(action, num);
+            });
+        });
+        document.addEventListener('click', (evt) => {
+            if (menu.style.display === 'flex' && !menu.contains(evt.target)) closeRailContextMenu();
+        });
+        document.addEventListener('keydown', (evt) => {
+            if (evt.key === 'Escape' && menu.style.display === 'flex') closeRailContextMenu();
+        });
+    }
+}
+
+function closeRailContextMenu() {
+    const menu = document.getElementById('rail-context-menu');
+    if (menu) menu.style.display = 'none';
+}
+
+async function handleRailAction(action, knittingNum) {
+    switch (action) {
+        case 'ins-row-above': {
+            // Knitting row N at array idx (state.rows - N). "Above" inserts at
+            // that array index, pushing N's content up so the new row sits
+            // above N in the chart (knitting row N+1 after the insert).
+            const r = state.rows - knittingNum;
+            insertRowAt(r);
+            break;
+        }
+        case 'ins-row-below': {
+            // "Below" inserts immediately under N — splice at array idx + 1.
+            const r = state.rows - knittingNum + 1;
+            insertRowAt(r);
+            break;
+        }
+        case 'del-row': {
+            const r = state.rows - knittingNum;
+            await deleteRowAt(r);
+            break;
+        }
+        case 'ins-col-left': {
+            // Knitting col N at array idx (state.cols - N). "Left" of N in the
+            // chart = lower array idx; splice at that idx pushes N's content
+            // right.
+            const c = state.cols - knittingNum;
+            await insertColAt(c);
+            break;
+        }
+        case 'ins-col-right': {
+            const c = state.cols - knittingNum + 1;
+            await insertColAt(c);
+            break;
+        }
+        case 'del-col': {
+            const c = state.cols - knittingNum;
+            await deleteColAt(c);
+            break;
         }
     }
 }
@@ -603,6 +882,19 @@ function bindEvents() {
             pushHistory();
         }
     });
+
+    // Rail context menus (#17): right-click a row/col label to insert or
+    // delete that row/col. We delegate from the rail container so labels
+    // don't need individual listeners (renderNumbers rebuilds them on
+    // every render).
+    const rowRailLeft = document.getElementById('row-numbers-left');
+    const rowRailRight = document.getElementById('row-numbers-right');
+    const colRailTop = document.getElementById('col-numbers');
+    const colRailBot = document.getElementById('col-numbers-bottom');
+    if (rowRailLeft) rowRailLeft.addEventListener('contextmenu', onRowRailContext);
+    if (rowRailRight) rowRailRight.addEventListener('contextmenu', onRowRailContext);
+    if (colRailTop) colRailTop.addEventListener('contextmenu', onColRailContext);
+    if (colRailBot) colRailBot.addEventListener('contextmenu', onColRailContext);
 
     // Knitting mode toggle
     document.getElementById('knitting-mode').addEventListener('change', (e) => {

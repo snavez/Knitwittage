@@ -1,5 +1,5 @@
 // Knitwittage Service Worker — enables offline use and auto-updates
-const CACHE_VERSION = 'knitwittage-v111';
+const CACHE_VERSION = 'knitwittage-v112';
 const ASSETS = [
   './',
   './index.html',

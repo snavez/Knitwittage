@@ -255,34 +255,29 @@ fragile point (§7.10).
 When this lands, also bump `GRID_CANVAS_LIMIT_PX` (or remove it
 entirely) and update §7.10 of ARCHITECTURE.md.
 
-### 17. Row & column insert / delete
+### ~~17. Row & column insert / delete~~ ✓
 
-Right-click on a row number, column number, or cell to insert or delete a row/column
-*without* changing the total grid dimensions — the bounds stay fixed, contents shift.
+Shipped. Right-click on a row number (left or right rail) or column number
+(top or bottom rail) to insert or delete that row/column. Right-click on
+cells stays free for paste-cancel / colour-erase.
 
-**Delete row N**
-- Clear all stitches in row N.
-- Shift every row above (N+1, N+2, …) down by one, carrying no-stitch and background
-  fills wherever any stitch was defined in the source row.
-- The topmost row becomes empty after the shift.
+**Grow/shrink model** (chose this over the original "fixed-bounds, shift
+contents" idea, after weighing UX): insert grows the grid by 1, delete
+shrinks by 1. No silent content loss.
 
-**Insert row above / below N**
-- Shift the affected rows up by one to make space; the row that gets pushed past the
-  top edge is lost.
-- The newly inserted row is blank.
-- "Above" and "below" differ only in whether row N itself moves up or stays put.
-
-**Columns**: mirror the same logic horizontally (delete / insert left / insert right).
-
-**Right-click menu surfaces**
-- On a **row number** → Delete row, Insert row above, Insert row below.
-- On a **column number** → Delete column, Insert column left, Insert column right.
-- On a **cell** (ambiguous which axis the user wants) → all six options.
-
-**Notes**
+- Insert capped at GRID_MAX = 1000 — refuses with a toast at the limit.
+- Delete refuses below GRID_MIN = 2.
+- Delete prompts a confirm if the row/col has any colour or stitch content.
+- Column operations clear any cluster (cable / multi-cell stitch) crossing
+  the affected column, with a confirm before insert if a cluster spans the
+  insert point. Reuses `clearOverlappedClustersInRow()` to keep cluster-id
+  semantics consistent (§7.4).
+- Selection / paste-ghost / knit-mode all reset cleanly on dimension change
+  (the same `afterDimensionChange()` follow-up the Resize button uses).
 - Single undo entry per operation.
-- If the row/column being pushed off the edge contains defined stitches, warn or
-  confirm before committing — silent loss of work would be nasty.
+
+Lives in [js/app.js](js/app.js) — new `insertRowAt` / `deleteRowAt` /
+`insertColAt` / `deleteColAt` functions plus the `rail-context-menu` UI.
 
 ### 19. Per-row stitch counter + inc/dec balance check
 
@@ -421,6 +416,51 @@ standard crew / scoop), etc.
 - A pattern saved with a Person attached should reference them by id, not embed a
   copy of the measurements — so if the wearer's chest changes and the user re-runs
   the generator, they get an updated panel.
+
+---
+
+## Onboarding & help
+
+### 29. Tutorial + verbose help mode
+
+The app has accumulated a lot of subtle interactions — right-click on a cell
+cancels the paste-ghost, right-click on a row/col rail opens insert/delete,
+drag across cells places cables, ctrl+C arms a paste-ghost that ctrl+V drops,
+the Erase Stitch / Erase Colour toggles compose with the active tool, etc.
+None of this is discoverable without being told.
+
+Two related deliverables:
+
+**Tutorial** — first-run walkthrough that takes the user through:
+- Painting + the active-colour palette
+- Placing a stitch (single-cell)
+- Drag-placing a cable / multi-cell stitch
+- Selection → copy / paste / multi-paste; right-click to dismiss
+- Resize / Calculate grid size
+- Generate Instructions, Print, Knit mode
+
+Probably a coachmark / spotlight overlay (one step at a time, dim the rest)
+with Next / Skip controls. Persist `tutorial-seen` in localStorage so it
+doesn't fire on subsequent loads. Re-runnable from a "Show tutorial" link
+in the masthead or a Help menu.
+
+**Verbose help mode** — a toggle (Help icon in the masthead?) that, when
+on, sprinkles small inline overlays at decision points: hover a tool
+button to see the keyboard shortcut + erase-toggle compatibility, hover a
+row label to see "right-click to insert/delete", hover the Custom-stitch
+add button for "drag across 2+ cells if multi-cell, otherwise single-cell."
+
+When off, the UI is clean (status quo). When on, the user sees the same
+extra hints any time they hover. Should NOT auto-pop overlays — explicit
+hover only, so it's not annoying for repeat use.
+
+Implementation hints:
+- Tutorial: a single `<div id="tutorial-overlay">` with one step shown at
+  a time, anchored to a target element via `getBoundingClientRect()`.
+- Help mode: a body class like `body.help-mode` that reveals
+  `.help-hint` siblings (currently `display:none`) on hover.
+- Both share an authoring format — a small JSON or JS data structure
+  listing each hint's selector + content + which mode it appears in.
 
 ---
 
