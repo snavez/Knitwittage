@@ -75,11 +75,11 @@ function openImageModal() {
     document.getElementById('image-rows').value = state.rows;
     document.getElementById('image-cols').value = state.cols;
 
-    // Show place-on-grid option only when the grid has content
-    const hasContent = state.stitchGrid.some(row =>
-        row.some(s => s === 'no-stitch'));
-    const placeRadio = document.getElementById('image-apply-place');
-    if (placeRadio) placeRadio.parentElement.style.display = hasContent ? '' : 'none';
+    // "Place on existing grid" is always available — the user may want to
+    // integrate the image into a garment outline, a repeating pattern, or
+    // any grid they've already started working on.
+    const placeLabel = document.getElementById('image-apply-place-label');
+    if (placeLabel) placeLabel.style.display = '';
 
     resetToDropZone();
 }
