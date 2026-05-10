@@ -434,39 +434,196 @@ function replaceGridWithImage() {
     showToast('Image pattern applied');
 }
 
-// ── Place on existing grid (garment-aware) ─────────────────────────
+// ── Place on existing grid — ghost preview + overflow handling ─────
+
+// Module-private state for image ghost placement
+let imageGhostPattern = null;   // saved pattern for ghost commit
+let imageGhostPalette = [];     // saved palette for ghost commit
 
 function placeImageOnGrid() {
     const patRows = imagePattern.length;
     const patCols = imagePattern[0].length;
 
-    // Find the available (non-no-stitch) bounding box on the current grid
-    const avail = findAvailableArea();
-
-    if (patRows > avail.rows || patCols > avail.cols) {
-        // Too large — offer to rescale to fit
-        const scale = Math.min(avail.rows / patRows, avail.cols / patCols);
-        const newRows = Math.max(4, Math.floor(patRows * scale));
-        const newCols = Math.max(4, Math.floor(patCols * scale));
-
-        if (!confirm(
-            `Image (${patRows}×${patCols}) is larger than the available area ` +
-            `(${avail.rows}×${avail.cols}).\n\nRescale to ${newRows}×${newCols} to fit?`
-        )) return;
-
-        // Reprocess at the smaller size, then re-apply
-        document.getElementById('image-rows').value = newRows;
-        document.getElementById('image-cols').value = newCols;
-        processImage();
-        placeImageOnGrid();      // recurse with the resized pattern
+    // Check if image exceeds the grid
+    if (patRows > state.rows || patCols > state.cols) {
+        handleImageOverflow(patRows, patCols);
         return;
     }
 
-    ensureImageColorsInPalette();
+    // Image fits — arm the ghost for interactive placement
+    armImageGhost();
+}
 
-    // Centre the image in the available area
-    const startRow = avail.top + Math.floor((avail.rows - patRows) / 2);
-    const startCol = avail.left + Math.floor((avail.cols - patCols) / 2);
+// ── Overflow: image larger than grid ──────────────────────────────
+
+async function handleImageOverflow(patRows, patCols) {
+    const extraRows = Math.max(0, patRows - state.rows);
+    const extraCols = Math.max(0, patCols - state.cols);
+    const newRows = state.rows + extraRows;
+    const newCols = state.cols + extraCols;
+
+    const scale = Math.min(state.rows / patRows, state.cols / patCols);
+    const fitRows = Math.max(4, Math.floor(patRows * scale));
+    const fitCols = Math.max(4, Math.floor(patCols * scale));
+
+    const choice = await confirmDialog({
+        title: 'Image exceeds grid',
+        message:
+            `The image (${patRows} × ${patCols}) is larger than the current ` +
+            `grid (${state.rows} × ${state.cols}).`,
+        buttons: [
+            { id: 'expand', label: `Expand grid to ${newRows} × ${newCols}`, kind: 'primary' },
+            { id: 'downscale', label: `Downscale image to ${fitRows} × ${fitCols}` },
+            { id: 'cancel', label: 'Cancel' },
+        ],
+    });
+
+    if (choice === 'expand') {
+        expandGridForImage(extraRows, extraCols);
+        armImageGhost();
+    } else if (choice === 'downscale') {
+        document.getElementById('image-rows').value = fitRows;
+        document.getElementById('image-cols').value = fitCols;
+        processImage();
+        // After reprocessing, the pattern now fits — arm ghost
+        armImageGhost();
+    }
+    // 'cancel' or dismiss — do nothing, modal stays open
+}
+
+// ── Expand grid by adding rows at top and cols at left ────────────
+
+function expandGridForImage(addRows, addCols) {
+    const oldRows = state.rows;
+    const oldCols = state.cols;
+    const newRows = oldRows + addRows;
+    const newCols = oldCols + addCols;
+
+    // Build new grids, shifting existing content down and right
+    const newGrid = [];
+    const newStitchGrid = [];
+    for (let r = 0; r < newRows; r++) {
+        newGrid[r] = [];
+        newStitchGrid[r] = [];
+        for (let c = 0; c < newCols; c++) {
+            const oldR = r - addRows;
+            const oldC = c - addCols;
+            if (oldR >= 0 && oldR < oldRows && oldC >= 0 && oldC < oldCols) {
+                newGrid[r][c] = state.grid[oldR][oldC];
+                newStitchGrid[r][c] = state.stitchGrid[oldR][oldC];
+            } else {
+                newGrid[r][c] = null;
+                newStitchGrid[r][c] = null;
+            }
+        }
+    }
+
+    state.rows = newRows;
+    state.cols = newCols;
+    state.grid = newGrid;
+    state.stitchGrid = newStitchGrid;
+    document.getElementById('grid-rows').value = newRows;
+    document.getElementById('grid-cols').value = newCols;
+    renderGrid();
+}
+
+// ── Ghost placement ───────────────────────────────────────────────
+
+function armImageGhost() {
+    // Save the current image pattern + palette so we can commit later
+    // (the modal is about to close and imagePattern/extractedPalette reset)
+    imageGhostPattern = imagePattern.map(row => row.slice());
+    imageGhostPalette = extractedPalette.slice();
+
+    const patRows = imageGhostPattern.length;
+    const patCols = imageGhostPattern[0].length;
+
+    ensureImageColorsInPalette();
+    closeImageModal();
+
+    // Build ghost cells starting at 0,0 — renderImageGhost moves them
+    state.activeTool = 'select';
+    updateToolButtons();
+
+    showToast('Click on the grid to place the image — right-click or Esc to cancel');
+
+    // Render initial ghost at centre of grid
+    const startRow = Math.floor((state.rows - patRows) / 2);
+    const startCol = Math.floor((state.cols - patCols) / 2);
+    renderImageGhost(startRow, startCol);
+
+    // Wire up temporary event handlers
+    const container = document.querySelector('.canvas-area');
+
+    function onMouseMove(e) {
+        const hit = GridView.cellAt(e.clientX, e.clientY);
+        if (!hit) return;
+        renderImageGhost(hit.r, hit.c);
+    }
+
+    function onMouseDown(e) {
+        if (e.button !== 0) {
+            // Right-click or middle — cancel
+            cleanupGhost();
+            return;
+        }
+        const hit = GridView.cellAt(e.clientX, e.clientY);
+        if (!hit) return;
+        e.preventDefault();
+        e.stopPropagation();
+        commitImageGhost(hit.r, hit.c);
+        cleanupGhost();
+    }
+
+    function onKeyDown(e) {
+        if (e.key === 'Escape') {
+            cleanupGhost();
+        }
+    }
+
+    function onContextMenu(e) {
+        e.preventDefault();
+        cleanupGhost();
+    }
+
+    function cleanupGhost() {
+        container.removeEventListener('mousemove', onMouseMove, true);
+        container.removeEventListener('mousedown', onMouseDown, true);
+        container.removeEventListener('contextmenu', onContextMenu, true);
+        document.removeEventListener('keydown', onKeyDown, true);
+        GridView.clearPasteGhost();
+        imageGhostPattern = null;
+        imageGhostPalette = [];
+    }
+
+    container.addEventListener('mousemove', onMouseMove, true);
+    container.addEventListener('mousedown', onMouseDown, true);
+    container.addEventListener('contextmenu', onContextMenu, true);
+    document.addEventListener('keydown', onKeyDown, true);
+}
+
+function renderImageGhost(startRow, startCol) {
+    if (!imageGhostPattern) return;
+    const patRows = imageGhostPattern.length;
+    const patCols = imageGhostPattern[0].length;
+    const cells = [];
+    for (let dr = 0; dr < patRows; dr++) {
+        for (let dc = 0; dc < patCols; dc++) {
+            const r = startRow + dr, c = startCol + dc;
+            if (r < 0 || r >= state.rows || c < 0 || c >= state.cols) continue;
+            const color = imageGhostPattern[dr][dc];
+            if (color !== null) {
+                cells.push({ r, c, color });
+            }
+        }
+    }
+    GridView.setPasteGhost(cells);
+}
+
+function commitImageGhost(startRow, startCol) {
+    if (!imageGhostPattern) return;
+    const patRows = imageGhostPattern.length;
+    const patCols = imageGhostPattern[0].length;
 
     for (let r = 0; r < patRows; r++) {
         for (let c = 0; c < patCols; c++) {
@@ -475,7 +632,7 @@ function placeImageOnGrid() {
             if (gr < 0 || gr >= state.rows || gc < 0 || gc >= state.cols) continue;
             // Only paint onto non-no-stitch cells
             if (state.stitchGrid[gr] && state.stitchGrid[gr][gc] === 'no-stitch') continue;
-            const color = imagePattern[r][c];
+            const color = imageGhostPattern[r][c];
             if (color !== null) {
                 state.grid[gr][gc] = color;
             }
@@ -484,9 +641,8 @@ function placeImageOnGrid() {
 
     renderGrid();
     pushHistory();
-    closeImageModal();
     showToast(`Image placed at row ${startRow + 1}, col ${startCol + 1} ` +
-              `(${patRows}×${patCols})`);
+              `(${patRows} × ${patCols})`);
 }
 
 // ── Find available non-no-stitch bounding box ──────────────────────
