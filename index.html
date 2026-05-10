@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=160">
+    <link rel="stylesheet" href="css/style.css?v=161">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -500,47 +500,63 @@
 
     <!-- Random Pattern Modal -->
     <div class="modal-overlay" id="random-modal">
-        <div class="modal modal-narrow">
+        <div class="modal random-modal">
             <div class="modal-header">
                 <h2>Random Pattern Generator</h2>
                 <button class="modal-close" id="random-close">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-row">
-                    <label for="random-rows">Rows:</label>
-                    <input type="number" id="random-rows" min="2" max="1000" value="12">
-                </div>
-                <div class="form-row">
-                    <label for="random-cols">Columns:</label>
-                    <input type="number" id="random-cols" min="2" max="1000" value="12">
-                </div>
-                <div class="form-row">
-                    <label for="random-mirror">Mirror:</label>
-                    <select id="random-mirror">
-                        <option value="both">Both axes</option>
-                        <option value="vertical">Vertical axis (left/right)</option>
-                        <option value="horizontal">Horizontal axis (top/bottom)</option>
-                        <option value="none">No mirroring</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <label for="random-density">Density:</label>
-                    <input type="range" id="random-density" min="10" max="90" value="40" class="density-slider">
-                    <span id="random-density-value">40%</span>
-                </div>
-                <div class="form-row">
-                    <label>Colours:</label>
-                    <div class="random-color-picks" id="random-color-picks">
-                        <!-- Populated by JS -->
+                <div class="random-layout">
+                    <div class="random-form-col">
+                        <fieldset class="sizing-fieldset">
+                            <legend>Dimensions</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="random-rows">Rows</label>
+                                <input type="number" id="random-rows" min="2" max="1000" value="12">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="random-cols">Columns</label>
+                                <input type="number" id="random-cols" min="2" max="1000" value="12">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="random-mirror">Mirror</label>
+                                <select id="random-mirror">
+                                    <option value="both">Both axes</option>
+                                    <option value="vertical">Vertical axis (left/right)</option>
+                                    <option value="horizontal">Horizontal axis (top/bottom)</option>
+                                    <option value="none">No mirroring</option>
+                                </select>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sizing-fieldset">
+                            <legend>Style</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="random-density">Density</label>
+                                <input type="range" id="random-density" min="10" max="90" value="40" class="density-slider">
+                                <span id="random-density-value" class="sizing-label" style="min-width:0;flex:none;">40%</span>
+                            </div>
+                            <div class="sizing-row" style="align-items:flex-start;">
+                                <label class="sizing-label">Colours</label>
+                                <div class="random-color-picks" id="random-color-picks">
+                                    <!-- Populated by JS -->
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <div class="random-preview-col">
+                        <div class="image-preview-box">
+                            <span class="preview-label">Preview</span>
+                            <canvas id="random-preview-canvas"></canvas>
+                        </div>
                     </div>
                 </div>
-                <div class="form-row form-actions">
-                    <button id="btn-random-generate" class="btn-primary">Generate</button>
-                    <button id="btn-random-apply">Apply to Grid</button>
-                </div>
-                <div class="random-preview-area">
-                    <canvas id="random-preview-canvas"></canvas>
-                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-random-generate">Generate</button>
+                <button id="random-cancel">Cancel</button>
+                <button id="btn-random-apply" class="btn-primary">Apply to Grid</button>
             </div>
         </div>
     </div>
@@ -862,24 +878,24 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-math.js?v=160"></script>
-    <script src="js/sizing-math.js?v=160"></script>
-    <script src="js/garment-math.js?v=160"></script>
-    <script src="js/grid-view.js?v=160"></script>
-    <script src="js/app.js?v=160"></script>
-    <script src="js/preview.js?v=160"></script>
-    <script src="js/print.js?v=160"></script>
-    <script src="js/instructions.js?v=160"></script>
-    <script src="js/random.js?v=160"></script>
-    <script src="js/image.js?v=160"></script>
-    <script src="js/stitches.js?v=160"></script>
-    <script src="js/stitch-editor.js?v=160"></script>
-    <script src="js/gallery.js?v=160"></script>
-    <script src="js/cables.js?v=160"></script>
-    <script src="js/knit-mode.js?v=160"></script>
-    <script src="js/tabs.js?v=160"></script>
-    <script src="js/sizing.js?v=160"></script>
-    <script src="js/garment.js?v=160"></script>
+    <script src="js/grid-math.js?v=161"></script>
+    <script src="js/sizing-math.js?v=161"></script>
+    <script src="js/garment-math.js?v=161"></script>
+    <script src="js/grid-view.js?v=161"></script>
+    <script src="js/app.js?v=161"></script>
+    <script src="js/preview.js?v=161"></script>
+    <script src="js/print.js?v=161"></script>
+    <script src="js/instructions.js?v=161"></script>
+    <script src="js/random.js?v=161"></script>
+    <script src="js/image.js?v=161"></script>
+    <script src="js/stitches.js?v=161"></script>
+    <script src="js/stitch-editor.js?v=161"></script>
+    <script src="js/gallery.js?v=161"></script>
+    <script src="js/cables.js?v=161"></script>
+    <script src="js/knit-mode.js?v=161"></script>
+    <script src="js/tabs.js?v=161"></script>
+    <script src="js/sizing.js?v=161"></script>
+    <script src="js/garment.js?v=161"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {

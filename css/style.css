@@ -918,6 +918,10 @@ body.knit-active .workbench {
     max-width: 500px;
 }
 
+.modal.random-modal {
+    max-width: 640px;
+}
+
 .modal-header {
     display: flex;
     justify-content: space-between;
@@ -1272,7 +1276,8 @@ body.knit-active .workbench {
 }
 
 #random-density-value {
-    font-size: 0.8rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
     color: var(--text-muted);
     min-width: 32px;
 }
@@ -1304,16 +1309,30 @@ body.knit-active .workbench {
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
 }
 
-.random-preview-area {
+.random-layout {
     display: flex;
-    justify-content: center;
-    padding: 8px 0;
+    gap: 20px;
+}
+
+.random-form-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.random-preview-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    flex-shrink: 0;
 }
 
 #random-preview-canvas {
     border: 1px solid var(--border);
     image-rendering: pixelated;
-    max-width: 100%;
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
 }
 
 /* === Instructions Modal === */

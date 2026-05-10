@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     document.getElementById('btn-random-generate').addEventListener('click', generateRandomPattern);
     document.getElementById('btn-random-apply').addEventListener('click', applyRandomPattern);
+    document.getElementById('random-cancel').addEventListener('click', closeRandomModal);
 
     // Density slider label
     const slider = document.getElementById('random-density');
@@ -110,37 +111,42 @@ function renderRandomPreview(pattern, rows, cols) {
     const canvas = document.getElementById('random-preview-canvas');
     const ctx = canvas.getContext('2d');
 
-    const maxW = 400;
-    const maxH = 300;
-    let cellSize = Math.min(Math.floor(maxW / cols), Math.floor(maxH / rows));
-    cellSize = clamp(cellSize, 3, 20);
+    // Fixed canvas size so the overlay doesn't jump when dimensions change
+    const fixedSize = 200;
+    canvas.width = fixedSize;
+    canvas.height = fixedSize;
 
-    const w = cols * cellSize;
-    const h = rows * cellSize;
-    canvas.width = w;
-    canvas.height = h;
+    // Scale cells to fill the fixed canvas, preserving aspect ratio
+    const cellW = fixedSize / cols;
+    const cellH = fixedSize / rows;
 
-    // Empty-cell fill tracks the warm paper-cream of the rest of the app.
     ctx.fillStyle = '#fbf7ec';
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(0, 0, fixedSize, fixedSize);
 
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const color = pattern[r][c];
             ctx.fillStyle = color || '#fbf7ec';
-            ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+            ctx.fillRect(
+                Math.floor(c * cellW),
+                Math.floor(r * cellH),
+                Math.ceil(cellW),
+                Math.ceil(cellH)
+            );
         }
     }
 
-    // Grid lines
-    if (cellSize >= 6) {
+    // Show grid lines only at low resolutions where they're visible
+    if (Math.min(cellW, cellH) >= 5) {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 0.5;
-        for (let y = 0; y <= h; y += cellSize) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        for (let r = 0; r <= rows; r++) {
+            const y = Math.floor(r * cellH);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(fixedSize, y); ctx.stroke();
         }
-        for (let x = 0; x <= w; x += cellSize) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        for (let c = 0; c <= cols; c++) {
+            const x = Math.floor(c * cellW);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, fixedSize); ctx.stroke();
         }
     }
 }
