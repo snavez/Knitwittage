@@ -31,6 +31,14 @@
     --mono: 'JetBrains Mono', 'IBM Plex Mono', ui-monospace, monospace;
 }
 
+/* ── Global custom radio / checkbox accent ──────────────────────────
+   Override the default browser blue with the app's warm accent colour
+   so radio buttons and checkboxes feel cohesive across all overlays. */
+input[type="radio"],
+input[type="checkbox"] {
+    accent-color: var(--accent);
+}
+
 body {
     font-family: var(--sans);
     background: var(--bg);
@@ -1212,8 +1220,9 @@ body.knit-active .workbench {
 .image-preview-box canvas {
     border: 1px solid var(--border);
     image-rendering: pixelated;
-    max-width: 200px;
-    max-height: 200px;
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
 }
 
 .preview-label {
@@ -2390,9 +2399,10 @@ body.knit-active .workbench {
 }
 .garment-hint {
     margin: 0 0 14px;
-    font-size: 0.85rem;
+    font-family: var(--mono);
+    font-size: 0.76rem;
     color: var(--text-muted);
-    line-height: 1.45;
+    line-height: 1.55;
 }
 .garment-layout {
     display: flex;
@@ -2442,7 +2452,9 @@ body.knit-active .workbench {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.85rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink, var(--text));
     cursor: pointer;
     white-space: nowrap;
 }

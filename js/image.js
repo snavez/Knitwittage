@@ -42,9 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Controls
-    document.getElementById('btn-image-reprocess').addEventListener('click', processImage);
     document.getElementById('btn-image-apply').addEventListener('click', applyImagePattern);
     document.getElementById('btn-image-change').addEventListener('click', resetToDropZone);
+    document.getElementById('image-cancel').addEventListener('click', closeImageModal);
 
     // Max colours slider — live reprocess
     const slider = document.getElementById('image-max-colors');
@@ -89,6 +89,7 @@ function resetToDropZone() {
     imagePattern = null;
     extractedPalette = [];
     document.getElementById('image-controls').style.display = 'none';
+    document.getElementById('image-footer').style.display = 'none';
     document.getElementById('drop-zone').style.display = 'block';
 }
 
@@ -129,9 +130,10 @@ function handleImageFile(file) {
             document.getElementById('image-rows').value = rows;
             document.getElementById('image-cols').value = cols;
 
-            // Show controls, hide drop zone
+            // Show controls + footer, hide drop zone
             document.getElementById('drop-zone').style.display = 'none';
             document.getElementById('image-controls').style.display = 'block';
+            document.getElementById('image-footer').style.display = '';
 
             renderOriginalPreview(img);
             processImage();
@@ -144,11 +146,18 @@ function handleImageFile(file) {
 function renderOriginalPreview(img) {
     const canvas = document.getElementById('image-original-canvas');
     const ctx = canvas.getContext('2d');
-    const maxSize = 200;
-    const scale = Math.min(maxSize / img.naturalWidth, maxSize / img.naturalHeight, 1);
-    canvas.width = Math.round(img.naturalWidth * scale);
-    canvas.height = Math.round(img.naturalHeight * scale);
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    // Fixed 200×200 canvas — image drawn centred, preserving aspect ratio
+    const fixedSize = 200;
+    canvas.width = fixedSize;
+    canvas.height = fixedSize;
+    const scale = Math.min(fixedSize / img.naturalWidth, fixedSize / img.naturalHeight, 1);
+    const w = Math.round(img.naturalWidth * scale);
+    const h = Math.round(img.naturalHeight * scale);
+    const x = Math.floor((fixedSize - w) / 2);
+    const y = Math.floor((fixedSize - h) / 2);
+    ctx.fillStyle = '#fbf7ec';
+    ctx.fillRect(0, 0, fixedSize, fixedSize);
+    ctx.drawImage(img, x, y, w, h);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -335,34 +344,43 @@ function rgbToHex([r, g, b]) {
 function renderPatternPreview(pattern, rows, cols) {
     const canvas = document.getElementById('image-pattern-canvas');
     const ctx = canvas.getContext('2d');
-    const maxSize = 200;
-    let cellSize = Math.min(Math.floor(maxSize / cols), Math.floor(maxSize / rows));
-    cellSize = clamp(cellSize, 2, 20);
 
-    const w = cols * cellSize;
-    const h = rows * cellSize;
-    canvas.width = w;
-    canvas.height = h;
+    // Fixed canvas size so the overlay doesn't jump when resolution changes
+    const fixedSize = 200;
+    canvas.width = fixedSize;
+    canvas.height = fixedSize;
+
+    // Scale cells to fill the fixed canvas, preserving aspect ratio
+    const cellW = fixedSize / cols;
+    const cellH = fixedSize / rows;
 
     ctx.fillStyle = '#fbf7ec';
-    ctx.fillRect(0, 0, w, h);
+    ctx.fillRect(0, 0, fixedSize, fixedSize);
 
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             const color = pattern[r][c];
             ctx.fillStyle = color || '#fbf7ec';
-            ctx.fillRect(c * cellSize, r * cellSize, cellSize, cellSize);
+            ctx.fillRect(
+                Math.floor(c * cellW),
+                Math.floor(r * cellH),
+                Math.ceil(cellW),
+                Math.ceil(cellH)
+            );
         }
     }
 
-    if (cellSize >= 5) {
+    // Show grid lines only at low resolutions where they're visible
+    if (Math.min(cellW, cellH) >= 5) {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 0.5;
-        for (let y = 0; y <= h; y += cellSize) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        for (let r = 0; r <= rows; r++) {
+            const y = Math.floor(r * cellH);
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(fixedSize, y); ctx.stroke();
         }
-        for (let x = 0; x <= w; x += cellSize) {
-            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        for (let c = 0; c <= cols; c++) {
+            const x = Math.floor(c * cellW);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, fixedSize); ctx.stroke();
         }
     }
 }

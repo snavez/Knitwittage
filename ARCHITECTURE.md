@@ -538,6 +538,80 @@ There is no automated test suite. After non-trivial changes, smoke-test:
 For a UI change, also: small chart, big chart (>30 cols), colour-only,
 stitch-only, mixed colour+stitch.
 
+### 6.6 Modal overlay structure
+
+All modal overlays should follow a consistent structure so the app feels
+cohesive. Use the **Add Stitch Type** and **Import Image** modals as the
+reference implementations.
+
+**HTML skeleton:**
+
+```html
+<div class="modal-overlay" id="my-modal">
+  <div class="modal-content">
+    <!-- Title bar -->
+    <div class="modal-header">
+      <h2>Modal Title</h2>
+      <button class="modal-close">&times;</button>
+    </div>
+
+    <!-- Scrollable body -->
+    <div class="modal-body">
+      <!-- Use sizing-fieldset + sizing-row for form groups -->
+      <fieldset class="sizing-fieldset">
+        <legend>SECTION HEADING</legend>
+        <div class="sizing-row">
+          <label class="sizing-label">Label</label>
+          <input ...>
+        </div>
+      </fieldset>
+    </div>
+
+    <!-- Action bar pinned to bottom -->
+    <div class="modal-footer">
+      <button>Cancel</button>
+      <button class="btn-primary">Confirm</button>
+    </div>
+  </div>
+</div>
+```
+
+**Key conventions:**
+
+- **Fonts**: headings use `var(--serif)`. Form labels and hint text use
+  `var(--mono)` at `0.76–0.78rem`. Buttons use the standard button font
+  (set globally).
+- **Fieldsets**: use `<fieldset class="sizing-fieldset">` with a
+  `<legend>`. These give the soft-cornered section boxes with the muted
+  border. No bare `<fieldset>` or `<div class="form-group">`.
+- **Form rows**: `<div class="sizing-row">` with `<label class="sizing-label">`
+  for left-aligned labels and right-aligned inputs.
+- **Radio / checkbox accent**: all radios and checkboxes use
+  `accent-color: var(--accent)` (set globally). Never override this
+  per-modal.
+- **Footer**: major actions (Save, Apply, Generate) go in a
+  `<div class="modal-footer">`. The primary action gets `class="btn-primary"`
+  (dark filled button). Secondary actions (Cancel, Change Image) are
+  plain buttons. Footer is always the last child of `.modal-content`.
+- **Colours**: borders use `var(--border)`, backgrounds use the page
+  cream `#fbf7ec` or `var(--bg)`. Text uses `var(--ink)` or
+  `var(--text-muted)` for hints.
+
+**Existing modals and their conformance:**
+
+| Modal | Footer | Fieldsets | Accent |
+|---|---|---|---|
+| Add Stitch Type | ✓ Cancel / Save stitch | ✗ (custom layout) | ✓ |
+| Import Image | ✓ Change Image / Cancel / Apply | ✓ sizing-fieldset | ✓ |
+| Garment Generator | ✓ Cancel / Generate | ✓ sizing-fieldset | ✓ |
+| Calculate Grid Size | ✓ Cancel / Apply | ✓ sizing-fieldset | ✓ |
+| Instructions | ✗ (inline buttons) | ✗ | — |
+| Pattern Preview | ✗ (standalone) | ✗ | — |
+
+When adding a new modal, copy the Import Image or Garment Generator
+skeleton. When touching an existing modal, nudge it toward this pattern
+if practical.
+
 ---
 
 ## 7. Fragile points + load-bearing assumptions

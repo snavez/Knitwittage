@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=158">
+    <link rel="stylesheet" href="css/style.css?v=160">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -435,47 +435,46 @@
                 <div id="image-controls" style="display:none;">
                     <div class="image-layout">
                         <div class="image-form-col">
-                            <fieldset class="form-group"><legend>Resolution</legend>
-                                <div class="form-row">
-                                    <label for="image-rows">Rows:</label>
+                            <fieldset class="sizing-fieldset">
+                                <legend>Resolution</legend>
+                                <div class="sizing-row">
+                                    <label class="sizing-label" for="image-rows">Rows</label>
                                     <input type="number" id="image-rows" min="4" max="1000" value="60">
                                 </div>
-                                <div class="form-row">
-                                    <label for="image-cols">Columns:</label>
+                                <div class="sizing-row">
+                                    <label class="sizing-label" for="image-cols">Columns</label>
                                     <input type="number" id="image-cols" min="4" max="1000" value="60">
                                 </div>
-                                <div class="form-row">
-                                    <label>Lock ratio:</label>
-                                    <input type="checkbox" id="image-lock-ratio" checked class="checkbox-input">
+                                <div class="sizing-row">
+                                    <label class="sizing-label">Lock ratio</label>
+                                    <input type="checkbox" id="image-lock-ratio" checked>
                                 </div>
                             </fieldset>
 
-                            <fieldset class="form-group"><legend>Colours</legend>
-                                <div class="form-row">
-                                    <label for="image-max-colors">Number:</label>
+                            <fieldset class="sizing-fieldset">
+                                <legend>Colours</legend>
+                                <div class="sizing-row">
+                                    <label class="sizing-label" for="image-max-colors">Number</label>
                                     <input type="range" id="image-max-colors" min="2" max="32" value="8" class="density-slider">
-                                    <span id="image-max-colors-value">8</span>
+                                    <span id="image-max-colors-value" class="sizing-label" style="min-width:0;flex:none;">8</span>
                                 </div>
-                                <div class="form-row">
-                                    <label>Palette:</label>
+                                <div class="sizing-row" style="align-items:flex-start;">
+                                    <label class="sizing-label">Palette</label>
                                     <div class="random-color-picks" id="image-color-picks">
                                         <!-- Auto-populated from image -->
                                     </div>
                                 </div>
                             </fieldset>
 
-                            <fieldset class="form-group"><legend>Apply</legend>
-                                <div class="form-row radio-group">
-                                    <label><input type="radio" name="image-apply-mode" value="replace" checked> Replace grid</label>
-                                    <label id="image-apply-place-label"><input type="radio" name="image-apply-mode" value="place" id="image-apply-place"> Place on grid</label>
+                            <fieldset class="sizing-fieldset">
+                                <legend>Application</legend>
+                                <div class="sizing-row">
+                                    <div class="garment-radio-group">
+                                        <label><input type="radio" name="image-apply-mode" value="replace" checked> Place on new grid</label>
+                                        <label id="image-apply-place-label"><input type="radio" name="image-apply-mode" value="place" id="image-apply-place"> Place on existing grid</label>
+                                    </div>
                                 </div>
                             </fieldset>
-
-                            <div class="form-row form-actions">
-                                <button id="btn-image-reprocess" class="btn-primary">Reprocess</button>
-                                <button id="btn-image-apply">Apply</button>
-                                <button id="btn-image-change">Change Image</button>
-                            </div>
                         </div>
 
                         <div class="image-preview-col">
@@ -490,6 +489,11 @@
                         </div>
                     </div>
                 </div>
+            </div>
+            <div class="modal-footer" id="image-footer" style="display:none;">
+                <button id="btn-image-change">Change Image</button>
+                <button id="image-cancel">Cancel</button>
+                <button id="btn-image-apply" class="btn-primary">Apply</button>
             </div>
         </div>
     </div>
@@ -858,24 +862,24 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-math.js?v=159"></script>
-    <script src="js/sizing-math.js?v=159"></script>
-    <script src="js/garment-math.js?v=159"></script>
-    <script src="js/grid-view.js?v=159"></script>
-    <script src="js/app.js?v=159"></script>
-    <script src="js/preview.js?v=159"></script>
-    <script src="js/print.js?v=159"></script>
-    <script src="js/instructions.js?v=159"></script>
-    <script src="js/random.js?v=159"></script>
-    <script src="js/image.js?v=159"></script>
-    <script src="js/stitches.js?v=159"></script>
-    <script src="js/stitch-editor.js?v=159"></script>
-    <script src="js/gallery.js?v=159"></script>
-    <script src="js/cables.js?v=159"></script>
-    <script src="js/knit-mode.js?v=159"></script>
-    <script src="js/tabs.js?v=159"></script>
-    <script src="js/sizing.js?v=159"></script>
-    <script src="js/garment.js?v=159"></script>
+    <script src="js/grid-math.js?v=160"></script>
+    <script src="js/sizing-math.js?v=160"></script>
+    <script src="js/garment-math.js?v=160"></script>
+    <script src="js/grid-view.js?v=160"></script>
+    <script src="js/app.js?v=160"></script>
+    <script src="js/preview.js?v=160"></script>
+    <script src="js/print.js?v=160"></script>
+    <script src="js/instructions.js?v=160"></script>
+    <script src="js/random.js?v=160"></script>
+    <script src="js/image.js?v=160"></script>
+    <script src="js/stitches.js?v=160"></script>
+    <script src="js/stitch-editor.js?v=160"></script>
+    <script src="js/gallery.js?v=160"></script>
+    <script src="js/cables.js?v=160"></script>
+    <script src="js/knit-mode.js?v=160"></script>
+    <script src="js/tabs.js?v=160"></script>
+    <script src="js/sizing.js?v=160"></script>
+    <script src="js/garment.js?v=160"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {
