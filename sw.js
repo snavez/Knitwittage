@@ -1,5 +1,5 @@
 // Knitwittage Service Worker — enables offline use and auto-updates
-const CACHE_VERSION = 'knitwittage-v124';
+const CACHE_VERSION = 'knitwittage-v125';
 const ASSETS = [
   './',
   './index.html',
@@ -63,14 +63,34 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: serve from cache first, fall back to network, update cache
+// Fetch: network-first for navigation (HTML), stale-while-revalidate for assets
 self.addEventListener('fetch', (event) => {
   // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
+  // Navigation requests (HTML pages): always try network first so the
+  // latest cache-busted script tags are picked up immediately.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => {
+            cache.put(event.request, clone);
+          });
+        }
+        return response;
+      }).catch(() => {
+        // Offline — fall back to cached HTML
+        return caches.match(event.request);
+      })
+    );
+    return;
+  }
+
+  // All other assets: stale-while-revalidate
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      // Return cached version immediately
       const fetchPromise = fetch(event.request).then((response) => {
         // Update cache with fresh version for next time
         if (response.ok) {

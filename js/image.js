@@ -54,7 +54,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (imageData) processImage();
     });
 
-    // Row/col lock ratio
+    // Row/col — respond to both typing (input) and blur (change)
+    // Debounce the 'input' event so we don't reprocess on every keystroke
+    let dimsTimer = null;
+    function debouncedDimsChange(e) {
+        clearTimeout(dimsTimer);
+        dimsTimer = setTimeout(() => onDimsChange(e), 400);
+    }
+    document.getElementById('image-rows').addEventListener('input', debouncedDimsChange);
+    document.getElementById('image-cols').addEventListener('input', debouncedDimsChange);
     document.getElementById('image-rows').addEventListener('change', onDimsChange);
     document.getElementById('image-cols').addEventListener('change', onDimsChange);
 });
