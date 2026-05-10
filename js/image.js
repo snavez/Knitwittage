@@ -1,7 +1,10 @@
 // === Image Import ===
+// Imports a raster image, quantises its colours via median-cut, and either
+// replaces the grid or stamps the result onto an existing piece.
 
 let imageData = null;       // Original Image element
-let imagePattern = null;    // Processed 2D pattern array
+let imagePattern = null;    // Processed 2D pattern array (hex strings)
+let extractedPalette = [];  // [{hex, rgb:[r,g,b]}, ...]
 
 document.addEventListener('DOMContentLoaded', () => {
     const modal = document.getElementById('image-modal');
@@ -14,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.target === e.currentTarget) closeImageModal();
     });
 
-    // Drop zone click → file picker
+    // Drop zone click -> file picker
     dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', (e) => {
         if (e.target.files[0]) handleImageFile(e.target.files[0]);
@@ -43,49 +46,40 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-image-apply').addEventListener('click', applyImagePattern);
     document.getElementById('btn-image-change').addEventListener('click', resetToDropZone);
 
-    // Max colours slider label
+    // Max colours slider — live reprocess
     const slider = document.getElementById('image-max-colors');
     const label = document.getElementById('image-max-colors-value');
-    slider.addEventListener('input', () => { label.textContent = slider.value; });
+    slider.addEventListener('input', () => {
+        label.textContent = slider.value;
+        if (imageData) processImage();
+    });
 
     // Row/col lock ratio
-    document.getElementById('image-rows').addEventListener('change', onRowsChange);
-    document.getElementById('image-cols').addEventListener('change', onColsChange);
-
-    initImageColorPicks();
+    document.getElementById('image-rows').addEventListener('change', onDimsChange);
+    document.getElementById('image-cols').addEventListener('change', onDimsChange);
 });
 
-function initImageColorPicks() {
-    const container = document.getElementById('image-color-picks');
-    container.innerHTML = '';
-    COLORS.forEach(color => {
-        const swatch = document.createElement('div');
-        swatch.className = 'random-swatch picked'; // all on by default
-        swatch.style.background = color;
-        swatch.dataset.color = color;
-        swatch.addEventListener('click', () => swatch.classList.toggle('picked'));
-        container.appendChild(swatch);
-    });
-}
-
-function getImagePickedColors() {
-    const swatches = document.querySelectorAll('#image-color-picks .random-swatch.picked');
-    const colors = [];
-    swatches.forEach(s => colors.push(s.dataset.color));
-    return colors.length > 0 ? colors : COLORS;
-}
+// ── Modal open / close ─────────────────────────────────────────────
 
 function openImageModal() {
     document.getElementById('image-modal').classList.add('open');
+    // Pre-fill dimensions from current grid
     document.getElementById('image-rows').value = state.rows;
     document.getElementById('image-cols').value = state.cols;
-    // Always start at the drop zone so user can pick a new image
+
+    // Show place-on-grid option only when the grid has content
+    const hasContent = state.stitchGrid.some(row =>
+        row.some(s => s === 'no-stitch'));
+    const placeRadio = document.getElementById('image-apply-place');
+    if (placeRadio) placeRadio.parentElement.style.display = hasContent ? '' : 'none';
+
     resetToDropZone();
 }
 
 function resetToDropZone() {
     imageData = null;
     imagePattern = null;
+    extractedPalette = [];
     document.getElementById('image-controls').style.display = 'none';
     document.getElementById('drop-zone').style.display = 'block';
 }
@@ -94,33 +88,33 @@ function closeImageModal() {
     document.getElementById('image-modal').classList.remove('open');
 }
 
-// === Aspect ratio lock ===
-function onRowsChange() {
-    if (!imageData || !document.getElementById('image-lock-ratio').checked) return;
-    const aspect = imageData.naturalWidth / imageData.naturalHeight;
-    const rows = clamp(+document.getElementById('image-rows').value, 4, 1000);
-    const cols = clamp(Math.round(rows * aspect), 4, 1000);
-    document.getElementById('image-cols').value = cols;
+// ── Aspect ratio lock / reprocess on change ────────────────────────
+
+function onDimsChange(e) {
+    if (imageData && document.getElementById('image-lock-ratio').checked) {
+        const aspect = imageData.naturalWidth / imageData.naturalHeight;
+        if (e.target.id === 'image-rows') {
+            const rows = clamp(+document.getElementById('image-rows').value, 4, 1000);
+            document.getElementById('image-cols').value = clamp(Math.round(rows * aspect), 4, 1000);
+        } else {
+            const cols = clamp(+document.getElementById('image-cols').value, 4, 1000);
+            document.getElementById('image-rows').value = clamp(Math.round(cols / aspect), 4, 1000);
+        }
+    }
+    if (imageData) processImage();
 }
 
-function onColsChange() {
-    if (!imageData || !document.getElementById('image-lock-ratio').checked) return;
-    const aspect = imageData.naturalWidth / imageData.naturalHeight;
-    const cols = clamp(+document.getElementById('image-cols').value, 4, 1000);
-    const rows = clamp(Math.round(cols / aspect), 4, 1000);
-    document.getElementById('image-rows').value = rows;
-}
+// ── Load image ─────────────────────────────────────────────────────
 
-// === Load image ===
 function handleImageFile(file) {
     const reader = new FileReader();
     reader.onload = (ev) => {
         const img = new Image();
         img.onload = () => {
             imageData = img;
-            // Set initial resolution based on aspect ratio
+            // Smart default resolution: ~ 60 rows (reasonable stitch count)
             const aspect = img.naturalWidth / img.naturalHeight;
-            let rows = 30;
+            let rows = 60;
             let cols = Math.round(rows * aspect);
             rows = clamp(rows, 4, 1000);
             cols = clamp(cols, 4, 1000);
@@ -131,7 +125,6 @@ function handleImageFile(file) {
             document.getElementById('drop-zone').style.display = 'none';
             document.getElementById('image-controls').style.display = 'block';
 
-            // Show original preview
             renderOriginalPreview(img);
             processImage();
         };
@@ -150,71 +143,147 @@ function renderOriginalPreview(img) {
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 }
 
-// === Process image → pattern ===
+// ═══════════════════════════════════════════════════════════════════
+//  Median-Cut Colour Quantisation
+// ═══════════════════════════════════════════════════════════════════
+
+function medianCutQuantize(pixels, numColors) {
+    if (pixels.length === 0) return [];
+    if (numColors <= 1) return [avgColor(pixels)];
+
+    let buckets = [pixels.slice()];
+
+    while (buckets.length < numColors) {
+        // Find bucket with the widest colour range on any channel
+        let maxRange = -1, maxIdx = 0, maxCh = 0;
+        for (let i = 0; i < buckets.length; i++) {
+            const b = buckets[i];
+            if (b.length < 2) continue;
+            for (let ch = 0; ch < 3; ch++) {
+                let lo = 255, hi = 0;
+                for (const p of b) {
+                    if (p[ch] < lo) lo = p[ch];
+                    if (p[ch] > hi) hi = p[ch];
+                }
+                if (hi - lo > maxRange) {
+                    maxRange = hi - lo;
+                    maxIdx = i;
+                    maxCh = ch;
+                }
+            }
+        }
+        if (maxRange <= 0) break; // all remaining buckets are uniform
+
+        // Sort that bucket by its widest channel and split at the median
+        const bucket = buckets[maxIdx];
+        bucket.sort((a, b) => a[maxCh] - b[maxCh]);
+        const mid = Math.floor(bucket.length / 2);
+        buckets.splice(maxIdx, 1, bucket.slice(0, mid), bucket.slice(mid));
+    }
+
+    // Sort result by luminance (dark → light) for nicer palette display
+    const result = buckets.filter(b => b.length > 0).map(avgColor);
+    result.sort((a, b) => luminance(a) - luminance(b));
+    return result;
+}
+
+function avgColor(pixels) {
+    let r = 0, g = 0, b = 0;
+    for (const p of pixels) { r += p[0]; g += p[1]; b += p[2]; }
+    const n = pixels.length;
+    return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+}
+
+function luminance([r, g, b]) {
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+// ── Extract palette from image ─────────────────────────────────────
+
+function extractImagePalette(img, numColors) {
+    // Sample at a manageable size for fast colour extraction
+    const maxSample = 120;
+    const scale = Math.min(maxSample / img.naturalWidth,
+                           maxSample / img.naturalHeight, 1);
+    const sw = Math.max(1, Math.round(img.naturalWidth * scale));
+    const sh = Math.max(1, Math.round(img.naturalHeight * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, 0, 0, sw, sh);
+    const data = ctx.getImageData(0, 0, sw, sh).data;
+
+    const pixels = [];
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 128) continue; // skip transparent
+        pixels.push([data[i], data[i + 1], data[i + 2]]);
+    }
+    if (pixels.length === 0) return [];
+
+    return medianCutQuantize(pixels, numColors);
+}
+
+// ── Display extracted palette ──────────────────────────────────────
+
+function renderExtractedPalette(colors) {
+    const container = document.getElementById('image-color-picks');
+    container.innerHTML = '';
+    for (const rgb of colors) {
+        const hex = rgbToHex(rgb);
+        const swatch = document.createElement('div');
+        swatch.className = 'random-swatch picked';
+        swatch.style.background = hex;
+        swatch.title = hex;
+        container.appendChild(swatch);
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+//  Process image → pattern
+// ═══════════════════════════════════════════════════════════════════
+
 function processImage() {
     if (!imageData) return;
 
     const rows = clamp(+document.getElementById('image-rows').value, 4, 1000);
     const cols = clamp(+document.getElementById('image-cols').value, 4, 1000);
     const maxColors = +document.getElementById('image-max-colors').value;
-    const palette = getImagePickedColors().map(hex => ({ hex, rgb: hexToRGBArr(hex) }));
 
-    // Draw image scaled to target resolution on offscreen canvas
+    // Extract palette from the image itself (median cut)
+    const rgbPalette = extractImagePalette(imageData, maxColors);
+    extractedPalette = rgbPalette.map(rgb => ({
+        hex: rgbToHex(rgb),
+        rgb
+    }));
+    renderExtractedPalette(rgbPalette);
+
+    // Draw image scaled to target resolution
     const offscreen = document.createElement('canvas');
     offscreen.width = cols;
     offscreen.height = rows;
     const octx = offscreen.getContext('2d');
-    // Use smooth scaling for better downsampling
     octx.imageSmoothingEnabled = true;
     octx.imageSmoothingQuality = 'high';
     octx.drawImage(imageData, 0, 0, cols, rows);
 
     const pixels = octx.getImageData(0, 0, cols, rows).data;
 
-    // First pass: map every pixel to nearest palette colour
-    const mapped = [];
-    const colorCounts = {};
-    for (let r = 0; r < rows; r++) {
-        mapped[r] = [];
-        for (let c = 0; c < cols; c++) {
-            const i = (r * cols + c) * 4;
-            const pr = pixels[i], pg = pixels[i + 1], pb = pixels[i + 2], pa = pixels[i + 3];
-
-            // Treat near-transparent as background
-            if (pa < 128) {
-                mapped[r][c] = null;
-                continue;
-            }
-
-            const nearest = findNearestColor([pr, pg, pb], palette);
-            mapped[r][c] = nearest;
-            colorCounts[nearest] = (colorCounts[nearest] || 0) + 1;
-        }
-    }
-
-    // Second pass: limit to top N colours
-    const sortedColors = Object.entries(colorCounts)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, maxColors)
-        .map(e => e[0]);
-
-    // Build a reduced palette for remapping
-    const reducedPalette = sortedColors.map(hex => ({ hex, rgb: hexToRGBArr(hex) }));
-
+    // Map every pixel to nearest palette colour
     imagePattern = [];
     for (let r = 0; r < rows; r++) {
         imagePattern[r] = [];
         for (let c = 0; c < cols; c++) {
-            const color = mapped[r][c];
-            if (color === null) {
+            const i = (r * cols + c) * 4;
+            if (pixels[i + 3] < 128) {
                 imagePattern[r][c] = null;
-            } else if (sortedColors.includes(color)) {
-                imagePattern[r][c] = color;
-            } else {
-                // Remap to nearest in reduced palette
-                const rgb = hexToRGBArr(color);
-                imagePattern[r][c] = findNearestColor(rgb, reducedPalette);
+                continue;
             }
+            imagePattern[r][c] = findNearestColor(
+                [pixels[i], pixels[i + 1], pixels[i + 2]],
+                extractedPalette);
         }
     }
 
@@ -237,6 +306,8 @@ function findNearestColor(rgb, palette) {
     return bestHex;
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────
+
 function hexToRGBArr(hex) {
     const c = hex.replace('#', '');
     return [
@@ -245,6 +316,13 @@ function hexToRGBArr(hex) {
         parseInt(c.substr(4, 2), 16),
     ];
 }
+
+function rgbToHex([r, g, b]) {
+    return '#' + [r, g, b].map(v =>
+        Math.max(0, Math.min(255, v)).toString(16).padStart(2, '0')).join('');
+}
+
+// ── Preview rendering ──────────────────────────────────────────────
 
 function renderPatternPreview(pattern, rows, cols) {
     const canvas = document.getElementById('image-pattern-canvas');
@@ -258,8 +336,6 @@ function renderPatternPreview(pattern, rows, cols) {
     canvas.width = w;
     canvas.height = h;
 
-    // Empty-cell fill tracks the warm paper-cream of the rest of the app
-    // (was a stale dark navy from the old colour scheme).
     ctx.fillStyle = '#fbf7ec';
     ctx.fillRect(0, 0, w, h);
 
@@ -271,7 +347,6 @@ function renderPatternPreview(pattern, rows, cols) {
         }
     }
 
-    // Grid lines
     if (cellSize >= 5) {
         ctx.strokeStyle = 'rgba(255,255,255,0.08)';
         ctx.lineWidth = 0.5;
@@ -284,23 +359,44 @@ function renderPatternPreview(pattern, rows, cols) {
     }
 }
 
-// === Apply to grid ===
+// ═══════════════════════════════════════════════════════════════════
+//  Apply to grid
+// ═══════════════════════════════════════════════════════════════════
+
 function applyImagePattern() {
     if (!imagePattern) {
         showToast('Process an image first');
         return;
     }
 
+    const mode = document.querySelector(
+        'input[name="image-apply-mode"]:checked')?.value || 'replace';
+
+    if (mode === 'place') {
+        placeImageOnGrid();
+    } else {
+        replaceGridWithImage();
+    }
+}
+
+// ── Replace entire grid ────────────────────────────────────────────
+
+function replaceGridWithImage() {
     const rows = imagePattern.length;
     const cols = imagePattern[0].length;
+
+    ensureImageColorsInPalette();
 
     state.rows = rows;
     state.cols = cols;
     state.grid = [];
+    state.stitchGrid = [];
     for (let r = 0; r < rows; r++) {
         state.grid[r] = [];
+        state.stitchGrid[r] = [];
         for (let c = 0; c < cols; c++) {
             state.grid[r][c] = imagePattern[r][c];
+            state.stitchGrid[r][c] = null;
         }
     }
 
@@ -310,4 +406,118 @@ function applyImagePattern() {
     pushHistory();
     closeImageModal();
     showToast('Image pattern applied');
+}
+
+// ── Place on existing grid (garment-aware) ─────────────────────────
+
+function placeImageOnGrid() {
+    const patRows = imagePattern.length;
+    const patCols = imagePattern[0].length;
+
+    // Find the available (non-no-stitch) bounding box on the current grid
+    const avail = findAvailableArea();
+
+    if (patRows > avail.rows || patCols > avail.cols) {
+        // Too large — offer to rescale to fit
+        const scale = Math.min(avail.rows / patRows, avail.cols / patCols);
+        const newRows = Math.max(4, Math.floor(patRows * scale));
+        const newCols = Math.max(4, Math.floor(patCols * scale));
+
+        if (!confirm(
+            `Image (${patRows}×${patCols}) is larger than the available area ` +
+            `(${avail.rows}×${avail.cols}).\n\nRescale to ${newRows}×${newCols} to fit?`
+        )) return;
+
+        // Reprocess at the smaller size, then re-apply
+        document.getElementById('image-rows').value = newRows;
+        document.getElementById('image-cols').value = newCols;
+        processImage();
+        placeImageOnGrid();      // recurse with the resized pattern
+        return;
+    }
+
+    ensureImageColorsInPalette();
+
+    // Centre the image in the available area
+    const startRow = avail.top + Math.floor((avail.rows - patRows) / 2);
+    const startCol = avail.left + Math.floor((avail.cols - patCols) / 2);
+
+    for (let r = 0; r < patRows; r++) {
+        for (let c = 0; c < patCols; c++) {
+            const gr = startRow + r;
+            const gc = startCol + c;
+            if (gr < 0 || gr >= state.rows || gc < 0 || gc >= state.cols) continue;
+            // Only paint onto non-no-stitch cells
+            if (state.stitchGrid[gr] && state.stitchGrid[gr][gc] === 'no-stitch') continue;
+            const color = imagePattern[r][c];
+            if (color !== null) {
+                state.grid[gr][gc] = color;
+            }
+        }
+    }
+
+    renderGrid();
+    pushHistory();
+    closeImageModal();
+    showToast(`Image placed at row ${startRow + 1}, col ${startCol + 1} ` +
+              `(${patRows}×${patCols})`);
+}
+
+// ── Find available non-no-stitch bounding box ──────────────────────
+
+function findAvailableArea() {
+    let minR = state.rows, maxR = -1, minC = state.cols, maxC = -1;
+    let hasNoStitch = false;
+
+    for (let r = 0; r < state.rows; r++) {
+        for (let c = 0; c < state.cols; c++) {
+            if (state.stitchGrid[r] && state.stitchGrid[r][c] === 'no-stitch') {
+                hasNoStitch = true;
+            } else {
+                if (r < minR) minR = r;
+                if (r > maxR) maxR = r;
+                if (c < minC) minC = c;
+                if (c > maxC) maxC = c;
+            }
+        }
+    }
+
+    if (!hasNoStitch || maxR < 0) {
+        // No garment outline — entire grid is available
+        return { top: 0, left: 0, rows: state.rows, cols: state.cols };
+    }
+
+    return {
+        top: minR, left: minC,
+        rows: maxR - minR + 1,
+        cols: maxC - minC + 1,
+    };
+}
+
+// ── Ensure extracted colours are in the app palette ────────────────
+
+function ensureImageColorsInPalette() {
+    // The grid stores arbitrary hex values, so painting works even without
+    // adding to COLORS. But adding them lets the user continue to paint
+    // with those colours after the modal closes.
+    // We append unique non-duplicate swatches to the palette area.
+    const palette = document.getElementById('color-palette');
+    if (!palette) return;
+
+    const existing = new Set(
+        Array.from(palette.querySelectorAll('.color-swatch'))
+            .map(s => s.dataset.color));
+
+    for (const entry of extractedPalette) {
+        if (existing.has(entry.hex)) continue;
+        existing.add(entry.hex);
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.background = entry.hex;
+        swatch.dataset.color = entry.hex;
+        swatch.addEventListener('click', () => selectColor(entry.hex));
+        // Insert before the "+" custom-colour button
+        const customBtn = palette.querySelector('.color-swatch-custom');
+        palette.insertBefore(swatch, customBtn);
+    }
 }

@@ -366,7 +366,23 @@ to row *N+1*'s actual stitch count. Flag mismatches visually in the row-count co
 discrepancy. Catches the common shaping mistake where a knitter adds a K2tog but forgets
 to remove a cell from the following row.
 
-### 20. Garment outline generator (jumper, beanie, …)
+### 20. Garment outline generator (jumper, beanie, …) — V1 shipped
+
+V1 shipped: crew-neck jumper (front/back/sleeve) with set-in sleeve construction.
+Modal collects body measurements, gauge, fit (slim/standard/loose), and neckline
+(crew/V-neck/scoop). Generates one piece at a time into the current grid with a
+no-stitch outline. Measurements persist to localStorage; gauge falls back to the
+sizing calculator's saved gauge on first use. Preview canvas shows the silhouette
+live as inputs change.
+
+**Still open:**
+- Beanie template (crown decreases).
+- Recipient profiles (#21) — save people + their measurements.
+- Multi-panel support (linked grids for front/back/sleeve in one project).
+- Raglan / drop-shoulder / top-down construction alternatives.
+- Shoulder shaping (stepped bind-off at the very top — currently flat).
+
+**Original spec (retained for context):**
 
 A "start me off" feature that produces blank but correctly-shaped chart panels for a
 small set of canonical garments, sized to the user's body and gauge. The user then

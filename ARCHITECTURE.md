@@ -34,7 +34,8 @@ earlier one. Confirmed safe ordering, with rationale:
 | # | File | Owns |
 |---|------|------|
 | 0 | [js/grid-math.js](js/grid-math.js) | Pure-math helpers (labelStride, maxZoom, history cap, pull-to-centre scroll) — also imported by the test suite |
-| 0b | [js/sizing-math.js](js/sizing-math.js) | Pure-math helpers for gauge → cell-count conversion (stitch-count calculator + future garment generator) |
+| 0b | [js/sizing-math.js](js/sizing-math.js) | Pure-math helpers for gauge → cell-count conversion (stitch-count calculator + garment generator) |
+| 0c | [js/garment-math.js](js/garment-math.js) | Pure-math helpers for garment outline generation — ease tables, neck styles, body-panel and sleeve shaping |
 | 1 | [js/grid-view.js](js/grid-view.js) | `GridView` IIFE — canvas-backed chart renderer |
 | 2 | [js/app.js](js/app.js) | `state`, app init, palette init, tools, history, file save/load, zoom, status bar, copy/paste, keyboard shortcuts |
 | 3 | [js/preview.js](js/preview.js) | Pattern preview modal (`renderPreview`, `openPreview`, `closePreview`) |
@@ -49,6 +50,7 @@ earlier one. Confirmed safe ordering, with rationale:
 | 12 | [js/knit-mode.js](js/knit-mode.js) | "Knit mode" step-through overlay (`knitState`) |
 | 13 | [js/tabs.js](js/tabs.js) | Top tab strip (Design / Refine Instructions / Knit) |
 | 14 | [js/sizing.js](js/sizing.js) | Calculate Grid Size modal — gathers gauge + target-size inputs, calls sizing-math, persists last-used gauge to localStorage |
+| 15 | [js/garment.js](js/garment.js) | Garment Pattern Generator modal — collects measurements/gauge/style, calls garment-math, stamps no-stitch outline onto grid |
 
 **Why this ordering matters:**
 

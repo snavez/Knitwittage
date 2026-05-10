@@ -249,6 +249,16 @@
                 </div>
             </div>
 
+            <!-- Garments -->
+            <div class="panel-section">
+                <div class="panel-section-head">
+                    <span class="panel-section-title">Garments</span>
+                </div>
+                <div class="panel-row">
+                    <button id="btn-garment" class="panel-btn-wide" title="Generate a garment piece outline from body measurements and gauge">Generate garment piece…</button>
+                </div>
+            </div>
+
             <!-- Colourwork -->
             <div class="panel-section">
                 <div class="panel-section-head">
@@ -411,7 +421,7 @@
 
     <!-- Image Import Modal -->
     <div class="modal-overlay" id="image-modal">
-        <div class="modal modal-narrow">
+        <div class="modal modal-image">
             <div class="modal-header">
                 <h2>Import Image</h2>
                 <button class="modal-close" id="image-close">&times;</button>
@@ -423,36 +433,52 @@
                     <input type="file" id="image-file-input" accept="image/*" style="display:none;">
                 </div>
                 <div id="image-controls" style="display:none;">
-                    <div class="form-row">
-                        <label for="image-rows">Rows:</label>
-                        <input type="number" id="image-rows" min="4" max="1000" value="20">
-                    </div>
-                    <div class="form-row">
-                        <label for="image-cols">Columns:</label>
-                        <input type="number" id="image-cols" min="4" max="1000" value="20">
-                    </div>
-                    <div class="form-row">
-                        <label>Lock ratio:</label>
-                        <input type="checkbox" id="image-lock-ratio" checked class="checkbox-input">
-                    </div>
-                    <div class="form-row">
-                        <label for="image-max-colors">Max colours:</label>
-                        <input type="range" id="image-max-colors" min="2" max="12" value="6" class="density-slider">
-                        <span id="image-max-colors-value">6</span>
-                    </div>
-                    <div class="form-row">
-                        <label>Palette:</label>
-                        <div class="random-color-picks" id="image-color-picks">
-                            <!-- Populated by JS -->
+                    <div class="image-layout">
+                        <div class="image-form-col">
+                            <fieldset class="form-group"><legend>Resolution</legend>
+                                <div class="form-row">
+                                    <label for="image-rows">Rows:</label>
+                                    <input type="number" id="image-rows" min="4" max="1000" value="60">
+                                </div>
+                                <div class="form-row">
+                                    <label for="image-cols">Columns:</label>
+                                    <input type="number" id="image-cols" min="4" max="1000" value="60">
+                                </div>
+                                <div class="form-row">
+                                    <label>Lock ratio:</label>
+                                    <input type="checkbox" id="image-lock-ratio" checked class="checkbox-input">
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="form-group"><legend>Colours</legend>
+                                <div class="form-row">
+                                    <label for="image-max-colors">Number:</label>
+                                    <input type="range" id="image-max-colors" min="2" max="32" value="8" class="density-slider">
+                                    <span id="image-max-colors-value">8</span>
+                                </div>
+                                <div class="form-row">
+                                    <label>Palette:</label>
+                                    <div class="random-color-picks" id="image-color-picks">
+                                        <!-- Auto-populated from image -->
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="form-group"><legend>Apply</legend>
+                                <div class="form-row radio-group">
+                                    <label><input type="radio" name="image-apply-mode" value="replace" checked> Replace grid</label>
+                                    <label id="image-apply-place-label"><input type="radio" name="image-apply-mode" value="place" id="image-apply-place"> Place on grid</label>
+                                </div>
+                            </fieldset>
+
+                            <div class="form-row form-actions">
+                                <button id="btn-image-reprocess" class="btn-primary">Reprocess</button>
+                                <button id="btn-image-apply">Apply</button>
+                                <button id="btn-image-change">Change Image</button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="form-row form-actions">
-                        <button id="btn-image-reprocess" class="btn-primary">Reprocess</button>
-                        <button id="btn-image-apply">Apply to Grid</button>
-                        <button id="btn-image-change">Change Image</button>
-                    </div>
-                    <div class="image-previews">
-                        <div class="image-preview-pair">
+
+                        <div class="image-preview-col">
                             <div class="image-preview-box">
                                 <span class="preview-label">Original</span>
                                 <canvas id="image-original-canvas"></canvas>
@@ -699,6 +725,128 @@
         </div>
     </div>
 
+    <!-- Garment Pattern Generator Modal -->
+    <div class="modal-overlay" id="garment-modal">
+        <div class="modal modal-garment">
+            <div class="modal-header">
+                <h2>Garment Pattern Generator</h2>
+                <button class="modal-close" id="garment-close" title="Close">&times;</button>
+            </div>
+            <div class="modal-body garment-body">
+                <p class="garment-hint">Generate a correctly-shaped chart for a garment piece. Enter your gauge and body measurements, choose a style, then generate. The grid will be replaced with a blank outline you can design on.</p>
+
+                <div class="garment-layout">
+                    <div class="garment-form">
+                        <fieldset class="sizing-fieldset">
+                            <legend>Garment</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Type</label>
+                                <select id="garment-type" class="sizing-select">
+                                    <option value="jumper">Jumper</option>
+                                </select>
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Piece</label>
+                                <div class="garment-radio-group">
+                                    <label><input type="radio" name="garment-piece" value="back" checked> Back</label>
+                                    <label><input type="radio" name="garment-piece" value="front"> Front</label>
+                                    <label><input type="radio" name="garment-piece" value="sleeve"> Sleeve</label>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sizing-fieldset">
+                            <legend>Gauge</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-swatch">Swatch</label>
+                                <select id="garment-swatch" class="sizing-select">
+                                    <option value="cm-10">10 &times; 10 cm</option>
+                                    <option value="in-4">4 &times; 4 in</option>
+                                </select>
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-gauge-sts">Stitches per swatch</label>
+                                <input type="number" id="garment-gauge-sts" min="1" max="100" step="0.5" value="20" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-gauge-rows">Rows per swatch</label>
+                                <input type="number" id="garment-gauge-rows" min="1" max="100" step="0.5" value="28" inputmode="decimal">
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sizing-fieldset">
+                            <legend>Body measurements</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Units</label>
+                                <select id="garment-unit" class="sizing-select sizing-unit">
+                                    <option value="cm">cm</option>
+                                    <option value="in">inches</option>
+                                </select>
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-chest">Chest / bust</label>
+                                <input type="number" id="garment-chest" min="1" step="0.5" value="92" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-body-length">Body length (nape to hem)</label>
+                                <input type="number" id="garment-body-length" min="1" step="0.5" value="62" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-shoulder">Shoulder width</label>
+                                <input type="number" id="garment-shoulder" min="1" step="0.5" value="40" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-upper-arm">Upper arm circumference</label>
+                                <input type="number" id="garment-upper-arm" min="1" step="0.5" value="30" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-wrist">Wrist circumference</label>
+                                <input type="number" id="garment-wrist" min="1" step="0.5" value="17" inputmode="decimal">
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label" for="garment-arm-length">Arm length (underarm to wrist)</label>
+                                <input type="number" id="garment-arm-length" min="1" step="0.5" value="45" inputmode="decimal">
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="sizing-fieldset">
+                            <legend>Style</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Fit</label>
+                                <div class="garment-radio-group">
+                                    <label><input type="radio" name="garment-fit" value="slim"> Slim</label>
+                                    <label><input type="radio" name="garment-fit" value="standard" checked> Standard</label>
+                                    <label><input type="radio" name="garment-fit" value="loose"> Loose</label>
+                                </div>
+                            </div>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Neckline</label>
+                                <div class="garment-radio-group">
+                                    <label><input type="radio" name="garment-neck" value="crew" checked> Crew</label>
+                                    <label><input type="radio" name="garment-neck" value="vneck"> V-neck</label>
+                                    <label><input type="radio" name="garment-neck" value="scoop"> Scoop</label>
+                                </div>
+                            </div>
+                        </fieldset>
+                    </div>
+
+                    <div class="garment-preview-col">
+                        <div class="garment-preview-canvas-wrap">
+                            <canvas id="garment-preview-canvas" width="200" height="300"></canvas>
+                        </div>
+                        <div class="garment-result" id="garment-result">
+                            Fill in gauge and measurements to see the result.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer garment-footer">
+                <button id="garment-cancel">Cancel</button>
+                <button id="garment-generate" class="btn-primary">Generate</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Print View (hidden, shown only when printing) -->
     <div class="print-view" id="print-view">
         <h1 class="print-title">Knitting Pattern</h1>
@@ -712,6 +860,7 @@
 
     <script src="js/grid-math.js?v=158"></script>
     <script src="js/sizing-math.js?v=158"></script>
+    <script src="js/garment-math.js?v=158"></script>
     <script src="js/grid-view.js?v=158"></script>
     <script src="js/app.js?v=158"></script>
     <script src="js/preview.js?v=158"></script>
@@ -726,6 +875,7 @@
     <script src="js/knit-mode.js?v=158"></script>
     <script src="js/tabs.js?v=158"></script>
     <script src="js/sizing.js?v=158"></script>
+    <script src="js/garment.js?v=158"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {

@@ -1179,14 +1179,27 @@ body.knit-active .workbench {
     cursor: pointer;
 }
 
-.image-previews {
-    margin-top: 12px;
+.modal.modal-image {
+    max-width: 640px;
 }
 
-.image-preview-pair {
+.image-layout {
     display: flex;
+    gap: 20px;
+}
+
+.image-form-col {
+    flex: 1;
+    min-width: 0;
+}
+
+.image-preview-col {
+    display: flex;
+    flex-direction: column;
     gap: 12px;
-    justify-content: center;
+    align-items: center;
+    width: 220px;
+    flex-shrink: 0;
 }
 
 .image-preview-box {
@@ -2361,6 +2374,79 @@ body.knit-active .workbench {
     font-size: 0.74rem;
 }
 .sizing-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--border);
+}
+
+/* === Garment pattern generator modal === */
+.modal-garment { max-width: 720px; }
+.garment-body {
+    padding: 18px 20px;
+    max-height: 72vh;
+    overflow-y: auto;
+}
+.garment-hint {
+    margin: 0 0 14px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+.garment-layout {
+    display: flex;
+    gap: 20px;
+}
+.garment-form {
+    flex: 1;
+    min-width: 0;
+}
+.garment-preview-col {
+    width: 220px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+}
+.garment-preview-canvas-wrap {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px;
+    display: flex;
+    justify-content: center;
+}
+#garment-preview-canvas { display: block; }
+.garment-result {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+.garment-result-title {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+    font-size: 0.88rem;
+}
+.garment-radio-group {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.garment-radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.garment-footer {
     display: flex;
     justify-content: flex-end;
     gap: 10px;
