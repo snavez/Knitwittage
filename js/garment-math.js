@@ -62,6 +62,7 @@ function generateBodyPanel(piece, measCm, gauge, opts) {
     if (cols < 4 || totalRows < 4) {
         return { rows: Math.max(4, totalRows), cols: Math.max(4, cols),
                  mask: garmentMask(Math.max(4, totalRows), Math.max(4, cols), false),
+                 stitchOverlay: null,
                  summary: { pieceName: piece === 'front' ? 'Front' : 'Back' } };
     }
 
@@ -129,12 +130,28 @@ function generateBodyPanel(piece, measCm, gauge, opts) {
         }
     }
 
+    // ── Stitch overlay (shaping + ribbing) ──────────────────────────
+    const shapingOv = generateShapingOverlay(mask, totalRows, cols);
+    const ribbingRows = Math.min(opts.ribbingRows || 0, Math.max(0, bodyRows - 2));
+    const ribOv = ribbingRows > 0
+        ? generateRibbingOverlay(totalRows, cols, mask, opts.ribPattern || 'k1p1',
+              totalRows - ribbingRows, totalRows - 1)
+        : null;
+    const stitchOverlay = mergeOverlays(totalRows, cols, ribOv, shapingOv);
+
     const shoulderSts = Math.max(0, Math.floor((shoulderWidthSts - neckWidthSts) / 2));
 
+    // Neckband pickup estimate (approximate — knitters adjust to fit)
+    const neckPickupSts = neckWidthSts
+        + 2 * Math.round(Math.round(neck.frontDepthCm * rowsPerCm) * 0.75)
+        + 2 * Math.round(Math.round(neck.backDepthCm  * rowsPerCm) * 0.75);
+
     return {
-        rows: totalRows, cols, mask,
+        rows: totalRows, cols, mask, stitchOverlay,
         summary: {
             pieceName: piece === 'front' ? 'Front' : 'Back',
+            piece,
+            neckStyle: opts.neck || 'crew',
             widthCm: Math.round(halfChestCm * 10) / 10,
             castOnSts: cols,
             totalRows,
@@ -145,6 +162,9 @@ function generateBodyPanel(piece, measCm, gauge, opts) {
             neckWidthSts,
             neckDepthRows,
             shoulderSts,
+            ribbingRows,
+            ribPattern: opts.ribPattern || 'k1p1',
+            neckPickupSts,
         }
     };
 }
@@ -187,6 +207,7 @@ function generateSleeve(measCm, gauge, opts) {
     if (cols < 4 || totalRows < 4) {
         return { rows: Math.max(4, totalRows), cols: Math.max(4, cols),
                  mask: garmentMask(Math.max(4, totalRows), Math.max(4, cols), false),
+                 stitchOverlay: null,
                  summary: { pieceName: 'Sleeve' } };
     }
 
@@ -278,16 +299,33 @@ function generateSleeve(measCm, gauge, opts) {
 
     // ── Arm taper (rows capRows … totalRows-1) ──────────────────────
     // Full width at top (underarm); tapers to wrist at bottom (cast-on).
+    // When ribbing is enabled, the bottom ribbingRows are straight at
+    // wrist width and increases are distributed over the remaining rows.
+    const ribbingRows = Math.min(opts.ribbingRows || 0, Math.max(0, armLengthRows - 2));
+    const shapedArmRows = Math.max(1, armLengthRows - ribbingRows);
     const taperPerSide = Math.max(0, Math.floor((cols - wristSts) / 2));
     for (let r = capRows; r < totalRows; r++) {
         const fromTop = r - capRows;
-        const t = armLengthRows <= 1 ? 0 : fromTop / (armLengthRows - 1);
-        const margin = Math.round(taperPerSide * t);
-        garmentFillMargins(mask, r, cols, margin);
+        if (fromTop >= shapedArmRows) {
+            // Cuff / ribbing zone: constant wrist width
+            garmentFillMargins(mask, r, cols, taperPerSide);
+        } else {
+            const t = shapedArmRows <= 1 ? 0 : fromTop / (shapedArmRows - 1);
+            const margin = Math.round(taperPerSide * t);
+            garmentFillMargins(mask, r, cols, margin);
+        }
     }
 
+    // ── Stitch overlay (shaping + ribbing) ──────────────────────────
+    const shapingOv = generateShapingOverlay(mask, totalRows, cols);
+    const ribOv = ribbingRows > 0
+        ? generateRibbingOverlay(totalRows, cols, mask, opts.ribPattern || 'k1p1',
+              totalRows - ribbingRows, totalRows - 1)
+        : null;
+    const stitchOverlay = mergeOverlays(totalRows, cols, ribOv, shapingOv);
+
     return {
-        rows: totalRows, cols, mask,
+        rows: totalRows, cols, mask, stitchOverlay,
         summary: {
             pieceName: 'Sleeve',
             widthCm: Math.round(upperArmCm * 10) / 10,
@@ -302,6 +340,8 @@ function generateSleeve(measCm, gauge, opts) {
             capInitialBO,
             finalBOSts,
             decsPerSide,
+            ribbingRows,
+            ribPattern: opts.ribPattern || 'k1p1',
         }
     };
 }
@@ -319,12 +359,109 @@ function garmentFillMargins(mask, r, cols, margin) {
     }
 }
 
+// ── Shaping overlay ────────────────────────────────────────────────
+// Scans a no-stitch mask to find rows where the fabric edge shifts by
+// exactly 1 stitch (gradual shaping) and places the appropriate
+// decrease or increase stitch IDs one stitch inward from the edge.
+//
+// Fully-fashioned convention ("lean into the piece"):
+//   Decrease — side edges:  K2tog on LEFT, SSK on RIGHT
+//   Decrease — neck edges:  SSK on LEFT of opening, K2tog on RIGHT
+//   Increase — side edges:  M1L on LEFT, M1R on RIGHT
+
+function generateShapingOverlay(mask, rows, cols) {
+    const ov = Array.from({ length: rows }, () => new Array(cols).fill(null));
+
+    function fabricEdges(r) {
+        let left = -1, right = -1;
+        for (let c = 0; c < cols; c++) {
+            if (!mask[r][c]) { if (left === -1) left = c; right = c; }
+        }
+        return left === -1 ? null : { left, right };
+    }
+
+    function neckGap(edges, r) {
+        if (!edges) return null;
+        let start = -1, end = -1;
+        for (let c = edges.left + 1; c < edges.right; c++) {
+            if (mask[r][c]) { if (start === -1) start = c; end = c; }
+        }
+        return start === -1 ? null : { start, end };
+    }
+
+    function safeSet(r, c, val) {
+        if (c >= 0 && c < cols && !mask[r][c] && !ov[r][c]) ov[r][c] = val;
+    }
+
+    for (let r = 0; r < rows - 1; r++) {
+        const cur = fabricEdges(r);
+        const below = fabricEdges(r + 1);
+        if (!cur || !below) continue;
+        if (cur.right - cur.left < 3) continue;   // shoulder too narrow
+
+        // Side-edge deltas: +1 = narrowing (decrease), −1 = widening (increase)
+        const dL = cur.left - below.left;
+        const dR = below.right - cur.right;
+
+        if (dL === 1)  safeSet(r, cur.left + 1,  'k-right');  // K2tog on left
+        if (dR === 1)  safeSet(r, cur.right - 1,  'k-left');  // SSK on right
+        if (dL === -1) safeSet(r, cur.left + 1,   'm1l');     // M1L on left
+        if (dR === -1) safeSet(r, cur.right - 1,  'm1r');     // M1R on right
+
+        // Neck opening: decreases lean into each shoulder section
+        const g  = neckGap(cur, r);
+        const gB = neckGap(below, r + 1);
+        if (g && gB) {
+            if (g.start < gB.start) safeSet(r, g.start - 2, 'k-left');  // SSK
+            if (g.end   > gB.end)   safeSet(r, g.end   + 2, 'k-right'); // K2tog
+        }
+    }
+
+    return ov;
+}
+
+// ── Ribbing overlay ────────────────────────────────────────────────
+// Fills the specified row range with alternating knit / purl stitches,
+// skipping no-stitch cells.  The alternation cycles from the first
+// fabric stitch in each row so the rib aligns regardless of margins.
+
+function generateRibbingOverlay(rows, cols, mask, ribPattern, startRow, endRow) {
+    const ov = Array.from({ length: rows }, () => new Array(cols).fill(null));
+    const group = ribPattern === 'k2p2' ? 2 : 1;
+    for (let r = Math.max(0, startRow); r <= Math.min(endRow, rows - 1); r++) {
+        let idx = 0;
+        for (let c = 0; c < cols; c++) {
+            if (mask[r][c]) continue;
+            ov[r][c] = (Math.floor(idx / group) % 2 === 0) ? 'knit' : 'purl';
+            idx++;
+        }
+    }
+    return ov;
+}
+
+// ── Merge overlays (later entries overwrite earlier) ───────────────
+
+function mergeOverlays(rows, cols) {
+    const m = Array.from({ length: rows }, () => new Array(cols).fill(null));
+    for (let a = 2; a < arguments.length; a++) {
+        const ov = arguments[a];
+        if (!ov) continue;
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                if (ov[r][c]) m[r][c] = ov[r][c];
+            }
+        }
+    }
+    return m;
+}
+
 // CJS export shim for tests
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         GARMENT_EASE, GARMENT_NECK, GARMENT_DEFAULTS_CM,
         deriveArmholeDepthCm, generateJumperPiece,
         generateBodyPanel, generateSleeve,
+        generateShapingOverlay, generateRibbingOverlay, mergeOverlays,
         garmentMask, garmentFillMargins,
     };
 }

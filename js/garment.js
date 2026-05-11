@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
         'garment-gauge-sts', 'garment-gauge-rows',
         'garment-chest', 'garment-body-length', 'garment-shoulder',
         'garment-upper-arm', 'garment-wrist', 'garment-arm-length',
+        'garment-rib-depth',
     ];
     for (const id of liveIds) {
         const el = document.getElementById(id);
@@ -48,6 +49,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('input[name="garment-fit"]').forEach(r =>
         r.addEventListener('change', recalcGarment));
     document.querySelectorAll('input[name="garment-neck"]').forEach(r =>
+        r.addEventListener('change', recalcGarment));
+
+    // Ribbing checkbox toggles options visibility
+    const ribCheck = document.getElementById('garment-ribbing');
+    if (ribCheck) {
+        ribCheck.addEventListener('change', () => {
+            const show = ribCheck.checked;
+            const opts = document.getElementById('garment-rib-options');
+            const depth = document.getElementById('garment-rib-depth-row');
+            if (opts) opts.style.display = show ? '' : 'none';
+            if (depth) depth.style.display = show ? '' : 'none';
+            recalcGarment();
+        });
+    }
+    document.querySelectorAll('input[name="garment-rib"]').forEach(r =>
         r.addEventListener('change', recalcGarment));
 
     document.getElementById('garment-unit')?.addEventListener('change', handleGarmentUnitSwitch);
@@ -102,7 +118,13 @@ function readGarmentInputs() {
     const fit   = document.querySelector('input[name="garment-fit"]:checked')?.value || 'standard';
     const neck  = document.querySelector('input[name="garment-neck"]:checked')?.value || 'crew';
 
-    return { measCm, gauge, piece, fit, neck, unit };
+    const ribbing = document.getElementById('garment-ribbing')?.checked || false;
+    const ribPattern = document.querySelector('input[name="garment-rib"]:checked')?.value || 'k1p1';
+    const ribDepthRaw = parseFloat(document.getElementById('garment-rib-depth')?.value) || 0;
+    const ribDepthCm = ribbing ? c(ribDepthRaw) : 0;
+    const ribbingRows = ribbing ? Math.max(0, Math.round(ribDepthCm * gauge.rowsPer10cm / 10)) : 0;
+
+    return { measCm, gauge, piece, fit, neck, unit, ribbingRows, ribPattern };
 }
 
 // ── Live recalculation ──────────────────────────────────────────────
@@ -115,7 +137,10 @@ function recalcGarment() {
         return;
     }
     const result = typeof generateJumperPiece === 'function'
-        ? generateJumperPiece(inp.piece, inp.measCm, inp.gauge, { fit: inp.fit, neck: inp.neck })
+        ? generateJumperPiece(inp.piece, inp.measCm, inp.gauge, {
+            fit: inp.fit, neck: inp.neck,
+            ribbingRows: inp.ribbingRows, ribPattern: inp.ribPattern,
+          })
         : null;
     renderGarmentResult(result);
     renderGarmentPreview(result);
@@ -147,6 +172,22 @@ function renderGarmentResult(result) {
         if (s.capInitialBO !== undefined) {
             html += `<div class="sizing-result-row"><strong>Cap BO:</strong> ${s.capInitialBO} sts init, ${s.finalBOSts} sts final</div>`;
             html += `<div class="sizing-result-row"><strong>Cap decs:</strong> ${s.decsPerSide} sts/side</div>`;
+        }
+    }
+
+    // Ribbing info
+    if (s.ribbingRows > 0) {
+        const ribLabel = (s.ribPattern || 'k1p1').toUpperCase();
+        const where = s.pieceName === 'Sleeve' ? 'cuff' : 'hem';
+        html += `<div class="sizing-result-row"><strong>Ribbing:</strong> ${ribLabel}, ${s.ribbingRows} rows at ${where}</div>`;
+    }
+
+    // Neckband finishing (front body panels only)
+    if (s.piece === 'front' && s.neckPickupSts) {
+        if (s.neckStyle === 'vneck') {
+            html += `<div class="sizing-result-row"><strong>Neckband:</strong> Pick up ~${s.neckPickupSts} sts (marker at V). Rib with S2KP at V-point every rnd, ~6 rnds.</div>`;
+        } else {
+            html += `<div class="sizing-result-row"><strong>Neckband:</strong> Pick up ~${s.neckPickupSts} sts. Rib for ~6 rnds, BO loosely.</div>`;
         }
     }
 
@@ -211,6 +252,19 @@ function renderGarmentPreview(result) {
         }
     }
 
+    // Ribbing zone indicator (dashed line)
+    if (result.summary && result.summary.ribbingRows > 0) {
+        const ribY = oy + (rows - result.summary.ribbingRows) * scale;
+        ctx.strokeStyle = 'rgba(138, 122, 101, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(ox, ribY);
+        ctx.lineTo(ox + w, ribY);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
     // Thin border
     ctx.strokeStyle = '#8a7a65';
     ctx.lineWidth = 0.5;
@@ -226,7 +280,10 @@ function applyGarmentPiece() {
         return;
     }
     const result = typeof generateJumperPiece === 'function'
-        ? generateJumperPiece(inp.piece, inp.measCm, inp.gauge, { fit: inp.fit, neck: inp.neck })
+        ? generateJumperPiece(inp.piece, inp.measCm, inp.gauge, {
+            fit: inp.fit, neck: inp.neck,
+            ribbingRows: inp.ribbingRows, ribPattern: inp.ribPattern,
+          })
         : null;
     if (!result || result.cols < 2 || result.rows < 2) {
         if (typeof showToast === 'function') showToast('Measurements too small.', { tone: 'error' });
@@ -247,19 +304,30 @@ function applyGarmentPiece() {
     // Resize grid
     if (typeof initGrid === 'function') initGrid(rows, cols);
 
-    // Clear everything and stamp the no-stitch mask
+    // Clear everything, stamp the no-stitch mask and stitch overlay
     for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
             state.grid[r][c] = null;
-            state.stitchGrid[r][c] =
-                (r < result.mask.length && c < result.mask[r].length && result.mask[r][c])
-                    ? 'no-stitch' : null;
+            if (r < result.mask.length && c < result.mask[r].length && result.mask[r][c]) {
+                state.stitchGrid[r][c] = 'no-stitch';
+            } else if (result.stitchOverlay && result.stitchOverlay[r] && result.stitchOverlay[r][c]) {
+                state.stitchGrid[r][c] = result.stitchOverlay[r][c];
+            } else {
+                state.stitchGrid[r][c] = null;
+            }
         }
     }
 
-    // Ensure no-stitch is in the active palette
-    if (state.activeStitches && !state.activeStitches.has('no-stitch')) {
+    // Ensure shaping and ribbing stitches are in the active palette
+    if (state.activeStitches) {
         state.activeStitches.add('no-stitch');
+        if (result.stitchOverlay) {
+            for (const row of result.stitchOverlay) {
+                for (const s of row) {
+                    if (s) state.activeStitches.add(s);
+                }
+            }
+        }
     }
 
     // Update dimension inputs
@@ -292,7 +360,7 @@ function handleGarmentUnitSwitch() {
     const newUnit = document.getElementById('garment-unit')?.value || 'cm';
     if (newUnit === GarmentUI.prevUnit) return;
 
-    const fields = ['chest', 'body-length', 'shoulder', 'upper-arm', 'wrist', 'arm-length'];
+    const fields = ['chest', 'body-length', 'shoulder', 'upper-arm', 'wrist', 'arm-length', 'rib-depth'];
     for (const f of fields) {
         const el = document.getElementById(`garment-${f}`);
         if (!el) continue;
@@ -327,6 +395,11 @@ function saveGarmentSettings() {
                 upperArm:   document.getElementById('garment-upper-arm')?.value,
                 wrist:      document.getElementById('garment-wrist')?.value,
                 armLength:  document.getElementById('garment-arm-length')?.value,
+            },
+            ribbing: {
+                enabled: document.getElementById('garment-ribbing')?.checked || false,
+                pattern: document.querySelector('input[name="garment-rib"]:checked')?.value || 'k1p1',
+                depth:   document.getElementById('garment-rib-depth')?.value,
             },
         }));
     } catch (e) { /* quota / private browsing */ }
@@ -381,4 +454,19 @@ function restoreGarmentSettings() {
     check('garment-piece', data.piece);
     check('garment-fit', data.fit);
     check('garment-neck', data.neck);
+
+    // Ribbing
+    if (data.ribbing) {
+        const ribEl = document.getElementById('garment-ribbing');
+        if (ribEl) {
+            ribEl.checked = !!data.ribbing.enabled;
+            const show = ribEl.checked;
+            const optsEl = document.getElementById('garment-rib-options');
+            const depthEl = document.getElementById('garment-rib-depth-row');
+            if (optsEl) optsEl.style.display = show ? '' : 'none';
+            if (depthEl) depthEl.style.display = show ? '' : 'none';
+        }
+        check('garment-rib', data.ribbing.pattern);
+        set('garment-rib-depth', data.ribbing.depth);
+    }
 }

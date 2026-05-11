@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=163">
+    <link rel="stylesheet" href="css/style.css?v=164">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2a211a">
     <!-- Browser tab favicon. PNG first because the GitHub-Pages-served SVG
@@ -812,7 +812,7 @@
                                 <input type="number" id="garment-body-length" min="1" step="0.5" value="62" inputmode="decimal">
                             </div>
                             <div class="sizing-row">
-                                <label class="sizing-label" for="garment-shoulder">Shoulder width</label>
+                                <label class="sizing-label" for="garment-shoulder" title="Cross-shoulder: acromion to acromion, measured across the back">Shoulder width (across back)</label>
                                 <input type="number" id="garment-shoulder" min="1" step="0.5" value="40" inputmode="decimal">
                             </div>
                             <div class="sizing-row">
@@ -848,6 +848,25 @@
                                 </div>
                             </div>
                         </fieldset>
+
+                        <fieldset class="sizing-fieldset">
+                            <legend>Ribbing</legend>
+                            <div class="sizing-row">
+                                <label class="sizing-label">Add ribbing</label>
+                                <input type="checkbox" id="garment-ribbing">
+                            </div>
+                            <div class="sizing-row" id="garment-rib-options" style="display: none;">
+                                <label class="sizing-label">Pattern</label>
+                                <div class="garment-radio-group">
+                                    <label><input type="radio" name="garment-rib" value="k1p1" checked> K1P1</label>
+                                    <label><input type="radio" name="garment-rib" value="k2p2"> K2P2</label>
+                                </div>
+                            </div>
+                            <div class="sizing-row" id="garment-rib-depth-row" style="display: none;">
+                                <label class="sizing-label" for="garment-rib-depth">Depth</label>
+                                <input type="number" id="garment-rib-depth" min="1" max="20" step="0.5" value="6" inputmode="decimal">
+                            </div>
+                        </fieldset>
                     </div>
 
                     <div class="garment-preview-col">
@@ -878,24 +897,24 @@
 
     <input type="file" id="file-input" accept=".json,.knit.json" style="display:none;">
 
-    <script src="js/grid-math.js?v=163"></script>
-    <script src="js/sizing-math.js?v=163"></script>
-    <script src="js/garment-math.js?v=163"></script>
-    <script src="js/grid-view.js?v=163"></script>
-    <script src="js/app.js?v=163"></script>
-    <script src="js/preview.js?v=163"></script>
-    <script src="js/print.js?v=163"></script>
-    <script src="js/instructions.js?v=163"></script>
-    <script src="js/random.js?v=163"></script>
-    <script src="js/image.js?v=163"></script>
-    <script src="js/stitches.js?v=163"></script>
-    <script src="js/stitch-editor.js?v=163"></script>
-    <script src="js/gallery.js?v=163"></script>
-    <script src="js/cables.js?v=163"></script>
-    <script src="js/knit-mode.js?v=163"></script>
-    <script src="js/tabs.js?v=163"></script>
-    <script src="js/sizing.js?v=163"></script>
-    <script src="js/garment.js?v=163"></script>
+    <script src="js/grid-math.js?v=164"></script>
+    <script src="js/sizing-math.js?v=164"></script>
+    <script src="js/garment-math.js?v=164"></script>
+    <script src="js/grid-view.js?v=164"></script>
+    <script src="js/app.js?v=164"></script>
+    <script src="js/preview.js?v=164"></script>
+    <script src="js/print.js?v=164"></script>
+    <script src="js/instructions.js?v=164"></script>
+    <script src="js/random.js?v=164"></script>
+    <script src="js/image.js?v=164"></script>
+    <script src="js/stitches.js?v=164"></script>
+    <script src="js/stitch-editor.js?v=164"></script>
+    <script src="js/gallery.js?v=164"></script>
+    <script src="js/cables.js?v=164"></script>
+    <script src="js/knit-mode.js?v=164"></script>
+    <script src="js/tabs.js?v=164"></script>
+    <script src="js/sizing.js?v=164"></script>
+    <script src="js/garment.js?v=164"></script>
     <script>
     // Register service worker for offline PWA support
     if ('serviceWorker' in navigator) {
