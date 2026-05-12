@@ -301,6 +301,9 @@ function applyGarmentPiece() {
 
     saveGarmentSettings();
 
+    // Store garment metadata for instruction generation
+    state.garmentPiece = result.summary || null;
+
     // Resize grid
     if (typeof initGrid === 'function') initGrid(rows, cols);
 

@@ -156,13 +156,21 @@ function formatInstructionsText(pattern, mode) {
     const isFlat = mode === 'flat';
     const hasColors = legend.colors.length > 0;
 
+    // Garment-aware detection
+    const garment = state.garmentPiece || null;
+    const isBodyPanel = garment && (garment.piece === 'front' || garment.piece === 'back');
+
     // Determine the stitchGrid region matching the pattern
     const stitchRegion = getStitchRegion(patRows, patCols);
 
     let text = 'KNITTING PATTERN INSTRUCTIONS\n';
     text += '==============================\n';
     text += `Size: ${patCols} stitches wide x ${patRows} rows tall\n`;
-    text += `Mode: ${isFlat ? 'Flat knitting (back and forth)' : 'In the round'}\n\n`;
+    text += `Mode: ${isFlat ? 'Flat knitting (back and forth)' : 'In the round'}\n`;
+    if (garment && garment.pieceName) {
+        text += `Piece: ${garment.pieceName}\n`;
+    }
+    text += '\n';
 
     // Colour legend — only if colours are present
     if (hasColors) {
@@ -252,6 +260,21 @@ function formatInstructionsText(pattern, mode) {
     // codes (including auto-converted ones like P2tog, SSP, S2KP) and build
     // the abbreviation block from those.
     let rowsText = '';
+
+    // ── Garment-aware path for body panels ──
+    if (isBodyPanel && isFlat && stitchRegion) {
+        const gEdges = analyzeGarmentEdges(stitchRegion, patRows, patCols);
+        const gSections = detectGarmentSections(gEdges, activeArrayRows);
+        if (gSections) {
+            rowsText = generateGarmentRowText(
+                pattern, stitchRegion, activeArrayRows, gEdges,
+                r1IsWS, hasColors, legend, gSections, garment, patCols
+            );
+        }
+    }
+
+    if (!rowsText) {
+    // ── Normal row-by-row encoding ──
     for (let i = 0; i < activeArrayRows.length; i++) {
         const knittingRow = i + 1;
         const arrayRow = activeArrayRows[i];
@@ -283,6 +306,7 @@ function formatInstructionsText(pattern, mode) {
             rowsText += `Rnd ${knittingRow}: ${rowInstructions}\n`;
         }
     }
+    } // end if (!rowsText)
     text += rowsText;
 
     // Build the abbreviation block from codes that actually appear in the
@@ -328,6 +352,220 @@ function getStitchRegion(patRows, patCols) {
         region.push(row);
     }
     return region;
+}
+
+// ── Garment-aware instruction helpers ─────────────────────────────
+
+// For each array row, compute the fabric edges, any internal gap, and
+// the number of active (non-no-stitch) stitches.
+function analyzeGarmentEdges(stitchRegion, patRows, patCols) {
+    const edges = [];
+    for (let ar = 0; ar < patRows; ar++) {
+        const row = stitchRegion ? stitchRegion[ar] : null;
+        let left = -1, right = -1, activeSts = 0;
+        for (let c = 0; c < patCols; c++) {
+            if (row && row[c] === 'no-stitch') continue;
+            if (left === -1) left = c;
+            right = c;
+            activeSts++;
+        }
+        if (left === -1) { edges.push(null); continue; }
+        let gap = null;
+        for (let c = left + 1; c < right; c++) {
+            if (row && row[c] === 'no-stitch') {
+                if (!gap) gap = { start: c, end: c, sts: 0 };
+                gap.end = c;
+            }
+        }
+        if (gap) gap.sts = gap.end - gap.start + 1;
+        edges.push({ left, right, gap, activeSts });
+    }
+    return edges;
+}
+
+// Detect armhole cast-off and neck-split transitions by comparing
+// consecutive active knitting rows.  Returns null if the grid doesn't
+// look like a shaped garment piece.
+function detectGarmentSections(edges, activeArrayRows) {
+    if (activeArrayRows.length < 10) return null;
+
+    let armholeIdx = -1;   // index in activeArrayRows where margin first jumps > 1
+    let armholeBOSts = 0;  // cast-off stitches per side
+    let neckIdx = -1;      // index where neck gap first appears
+    let neckBOSts = 0;     // centre sts cast off
+
+    for (let i = 1; i < activeArrayRows.length; i++) {
+        const cur = edges[activeArrayRows[i]];
+        const prev = edges[activeArrayRows[i - 1]];
+        if (!cur || !prev) continue;
+
+        if (armholeIdx === -1 && cur.left - prev.left > 1) {
+            armholeIdx = i;
+            armholeBOSts = cur.left - prev.left;
+        }
+        if (neckIdx === -1 && cur.gap && !prev.gap) {
+            neckIdx = i;
+            neckBOSts = cur.gap.sts;
+        }
+    }
+
+    return armholeIdx > 0 ? { armholeIdx, armholeBOSts, neckIdx, neckBOSts } : null;
+}
+
+// Generate instruction text for a shaped garment body panel (front/back).
+// Replaces the simple row-by-row loop with section-aware output that
+// handles armhole cast-off, neck split, and finishing notes.
+function generateGarmentRowText(
+    pattern, stitchRegion, activeArrayRows, edges,
+    r1IsWS, hasColors, legend, sections, garment, patCols
+) {
+    let text = '';
+
+    // ── helpers ──
+    function rowSide(idx) {
+        const kr = idx + 1;
+        const isOdd = (kr % 2 === 1);
+        const isRS = r1IsWS ? !isOdd : isOdd;
+        return { isRS, side: isRS ? 'RS' : 'WS', st: isRS ? 'K' : 'P', kr };
+    }
+
+    function encodeFullRow(idx) {
+        const ar = activeArrayRows[idx];
+        const { isRS, side, st, kr } = rowSide(idx);
+        const instr = encodeRowWithStitches(
+            pattern[ar], stitchRegion ? stitchRegion[ar] : null,
+            st, legend.labelMap, isRS, hasColors
+        );
+        const e = edges[ar];
+        return `Row ${kr} (${side}): ${instr} [${e ? e.activeSts : '?'} sts]\n`;
+    }
+
+    function encodeSlice(idx, cStart, cEnd) {
+        const ar = activeArrayRows[idx];
+        const { isRS, side, st, kr } = rowSide(idx);
+        const colorSlice = pattern[ar].slice(cStart, cEnd + 1);
+        const stitchSlice = stitchRegion ? stitchRegion[ar].slice(cStart, cEnd + 1) : null;
+        const instr = encodeRowWithStitches(
+            colorSlice, stitchSlice, st, legend.labelMap, isRS, hasColors
+        );
+        let sts = 0;
+        for (let c = cStart; c <= cEnd; c++) {
+            const s = stitchRegion && stitchRegion[ar] ? stitchRegion[ar][c] : null;
+            if (s !== 'no-stitch') sts++;
+        }
+        return `Row ${kr} (${side}): ${instr} [${sts} sts]\n`;
+    }
+
+    function sliceHasStitches(ar, cStart, cEnd) {
+        for (let c = cStart; c <= cEnd; c++) {
+            const s = stitchRegion && stitchRegion[ar] ? stitchRegion[ar][c] : null;
+            if (s !== 'no-stitch') return true;
+        }
+        return false;
+    }
+
+    // ── BODY ──
+    text += '\n── Body ──\n';
+    for (let i = 0; i < sections.armholeIdx; i++) {
+        text += encodeFullRow(i);
+    }
+
+    // ── ARMHOLE SHAPING ──
+    text += '\n── Armhole Shaping ──\n';
+
+    // Cast-off rows (2 rows: one for each side)
+    const prevSts = edges[activeArrayRows[sections.armholeIdx - 1]]?.activeSts || patCols;
+    const bo = sections.armholeBOSts;
+
+    const r1 = rowSide(sections.armholeIdx);
+    text += `Row ${r1.kr} (${r1.side}): Cast off ${bo} sts, ${r1.st} to end. [${prevSts - bo} sts]\n`;
+
+    if (sections.armholeIdx + 1 < activeArrayRows.length) {
+        const r2 = rowSide(sections.armholeIdx + 1);
+        text += `Row ${r2.kr} (${r2.side}): Cast off ${bo} sts, ${r2.st} to end. [${prevSts - 2 * bo} sts]\n`;
+    }
+
+    // Remaining armhole / body rows (gradual decreases handled by normal encoding)
+    const endIdx = sections.neckIdx > 0 ? sections.neckIdx : activeArrayRows.length;
+    for (let i = sections.armholeIdx + 2; i < endIdx; i++) {
+        text += encodeFullRow(i);
+    }
+
+    // ── NECK SHAPING ──
+    if (sections.neckIdx > 0) {
+        text += '\n── Neck Shaping ──\n';
+
+        const si = sections.neckIdx;
+        const ar = activeArrayRows[si];
+        const e = edges[ar];
+        const rs = rowSide(si);
+
+        if (e && e.gap) {
+            // Count stitches on each side of the gap
+            let leftSts = 0, rightSts = 0;
+            for (let c = 0; c < e.gap.start; c++) {
+                const s = stitchRegion[ar] ? stitchRegion[ar][c] : null;
+                if (s !== 'no-stitch') leftSts++;
+            }
+            for (let c = e.gap.end + 1; c < patCols; c++) {
+                const s = stitchRegion[ar] ? stitchRegion[ar][c] : null;
+                if (s !== 'no-stitch') rightSts++;
+            }
+
+            // On RS (reading RTL): right shoulder is worked first
+            if (rs.isRS) {
+                text += `Row ${rs.kr} (${rs.side}): ${rs.st}${rightSts}, cast off ${e.gap.sts} sts, ${rs.st}${leftSts}.\n`;
+            } else {
+                text += `Row ${rs.kr} (${rs.side}): ${rs.st}${leftSts}, cast off ${e.gap.sts} sts, ${rs.st}${rightSts}.\n`;
+            }
+
+            // Column boundaries for each shoulder
+            const leftEnd = e.gap.start - 1;
+            const rightStart = e.gap.end + 1;
+
+            // LEFT SHOULDER (low columns = garment left as worn)
+            text += '\nLeft shoulder:\n';
+            text += `Continue on ${leftSts} sts just worked.\n`;
+
+            for (let i = si + 1; i < activeArrayRows.length; i++) {
+                if (!sliceHasStitches(activeArrayRows[i], 0, leftEnd)) break;
+                text += encodeSlice(i, 0, leftEnd);
+            }
+            text += 'Cast off remaining sts.\n';
+
+            // RIGHT SHOULDER (high columns = garment right as worn)
+            text += '\nRight shoulder:\n';
+            const nextRS = rowSide(si + 1);
+            text += `With ${nextRS.side} facing, rejoin yarn at neck edge.\n`;
+
+            for (let i = si + 1; i < activeArrayRows.length; i++) {
+                if (!sliceHasStitches(activeArrayRows[i], rightStart, patCols - 1)) break;
+                text += encodeSlice(i, rightStart, patCols - 1);
+            }
+            text += 'Cast off remaining sts.\n';
+        }
+    }
+
+    // ── FINISHING ──
+    text += '\n── Finishing ──\n';
+    text += 'Sew front and back pieces together at shoulders using mattress stitch.\n';
+    text += 'Sew side seams using mattress stitch.\n';
+
+    if (garment && garment.piece === 'front' && garment.neckPickupSts) {
+        text += '\nNeckband:\n';
+        if (garment.neckStyle === 'vneck') {
+            text += `Pick up approximately ${garment.neckPickupSts} sts evenly around neck opening, placing a marker at the V-point.\n`;
+            text += 'Work in K1P1 rib, working S2KP (slip 2, K1, pass slipped sts over) at the V-point marker every round to form a mitered corner.\n';
+            text += 'Continue for approximately 6 rounds.\n';
+            text += 'Cast off loosely in pattern.\n';
+        } else {
+            text += `Pick up approximately ${garment.neckPickupSts} sts evenly around neck opening.\n`;
+            text += 'Work in K1P1 rib for approximately 6 rounds.\n';
+            text += 'Cast off loosely in pattern.\n';
+        }
+    }
+
+    return text;
 }
 
 // Encode a single row including stitch types and cables

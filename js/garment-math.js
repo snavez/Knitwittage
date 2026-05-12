@@ -103,12 +103,11 @@ function generateBodyPanel(piece, measCm, gauge, opts) {
 
     // Neck: opening widens from bottom of neck zone toward the top.
     // V-neck tapers linearly to a point.
-    // Crew/scoop use a smooth elliptical U-curve — no flat square section.
+    // Front crew/scoop use a smooth elliptical U-curve.
+    // Back neck uses a large center cast-off with gradual 1-st/side/row
+    // decreases — the standard flat-knit construction for back necks.
     const neckHalf = Math.floor(neckWidthSts / 2);
     const center = Math.floor(cols / 2);
-
-    // Minimum half-width at the very bottom (center bind-off, ~2 sts/side)
-    const centerHW = Math.max(1, Math.round(neckHalf * 0.12));
 
     for (let r = 0; r < neckDepthRows && r < totalRows; r++) {
         const t = neckDepthRows <= 1 ? 0 : r / (neckDepthRows - 1);
@@ -116,10 +115,16 @@ function generateBodyPanel(piece, measCm, gauge, opts) {
         if (piece === 'front' && opts.neck === 'vneck') {
             // V-neck: linear taper, full width at top → point at bottom
             hw = Math.round(neckHalf * (1 - t));
+        } else if (piece === 'back') {
+            // Back crew/scoop: large center cast-off, then 1 dec per side
+            // per row.  t=0 is the top (full width), t=1 is the bottom
+            // (first split row = large center cast-off).
+            hw = Math.max(1, neckHalf - Math.round(t * (neckDepthRows - 1)));
         } else {
-            // Crew / scoop: smooth elliptical U-shape
+            // Front crew / scoop: smooth elliptical U-shape
             // sqrt(1 − t²) gives a natural ellipse that rounds at the
             // bottom without any flat/square section.
+            const centerHW = Math.max(1, Math.round(neckHalf * 0.12));
             const curve = Math.sqrt(Math.max(0, 1 - t * t));
             hw = Math.max(centerHW, Math.round(neckHalf * curve));
         }
